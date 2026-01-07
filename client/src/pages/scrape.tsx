@@ -54,14 +54,12 @@ const statusColors: Record<string, string> = {
   failed: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
 };
 
-interface PlaybookScrapeResult {
-  success: boolean;
-  leadsCreated: number;
-  errors: string[];
-  leads: Array<{
-    institutionName: string;
-    id?: number;
-  }>;
+interface PlaybookScrapeJobResponse {
+  message: string;
+  scrapeJobId: number;
+  icpId: number;
+  icpName: string;
+  entitiesCount: number;
 }
 
 export default function ScrapePage() {
@@ -70,7 +68,7 @@ export default function ScrapePage() {
   const [selectedIcpId, setSelectedIcpId] = useState<string>("");
   const [entityInput, setEntityInput] = useState("");
   const [stateFilter, setStateFilter] = useState<string>("");
-  const [playbookResult, setPlaybookResult] = useState<PlaybookScrapeResult | null>(null);
+  const [playbookJobId, setPlaybookJobId] = useState<number | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const previousJobsRef = useRef<ScrapeJob[]>([]);
@@ -153,17 +151,14 @@ export default function ScrapePage() {
         maxResults: 5,
         dryRun: false,
       });
-      return response.json() as Promise<PlaybookScrapeResult>;
+      return response.json() as Promise<PlaybookScrapeJobResponse>;
     },
     onSuccess: (data) => {
-      setPlaybookResult(data);
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads/top-scored"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      setPlaybookJobId(data.scrapeJobId);
+      queryClient.invalidateQueries({ queryKey: ["/api/scrape/jobs"] });
       toast({
-        title: data.success ? "Playbook Scraping Complete" : "Scraping Completed with Errors",
-        description: `Created ${data.leadsCreated} lead(s). ${data.errors.length > 0 ? `${data.errors.length} error(s) occurred.` : ""}`,
-        variant: data.success ? "default" : "destructive",
+        title: "Playbook Scraping Started",
+        description: `Started scraping ${data.entitiesCount} entities for ${data.icpName}. Track progress below.`,
       });
       setEntityInput("");
     },
@@ -566,88 +561,96 @@ export default function ScrapePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Scrape Results</CardTitle>
-                <CardDescription>Results from playbook scraping</CardDescription>
+                <CardTitle>Scrape Jobs</CardTitle>
+                <CardDescription>Recent playbook scraping jobs</CardDescription>
               </CardHeader>
               <CardContent>
-                {playbookScrapeMutation.isPending ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mb-2" />
-                    <p className="text-sm text-muted-foreground">Scraping in progress...</p>
-                    <p className="text-xs text-muted-foreground mt-1">This may take a few minutes</p>
-                  </div>
-                ) : playbookResult ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      {playbookResult.success ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-yellow-500" />
-                      )}
-                      <span className="font-medium">
-                        {playbookResult.leadsCreated} lead{playbookResult.leadsCreated !== 1 ? "s" : ""} created
-                      </span>
-                    </div>
-
-                    {playbookResult.leads.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Created Leads:</p>
-                        <ScrollArea className="h-[200px]">
+                {(() => {
+                  const playbookJobs = jobs?.filter((j) => j.icpId != null) || [];
+                  const activePlaybookJob = playbookJobs.find((j) => j.status === "running");
+                  
+                  if (playbookScrapeMutation.isPending) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mb-2" />
+                        <p className="text-sm text-muted-foreground">Starting scrape job...</p>
+                      </div>
+                    );
+                  }
+                  
+                  if (activePlaybookJob) {
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
+                          <span className="font-medium">Scraping in progress</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {activePlaybookJob.icpName && (
+                            <p>ICP: {activePlaybookJob.icpName}</p>
+                          )}
+                          <p>{activePlaybookJob.leadsFound} leads found so far</p>
+                        </div>
+                        <Progress value={50} className="h-2" />
+                      </div>
+                    );
+                  }
+                  
+                  if (playbookJobs.length > 0) {
+                    const recentJobs = playbookJobs.slice(0, 5);
+                    return (
+                      <div className="space-y-4">
+                        <ScrollArea className="h-[250px]">
                           <div className="space-y-2">
-                            {playbookResult.leads.map((lead, index) => (
-                              <div
-                                key={lead.id || index}
-                                className="flex items-center gap-2 p-2 bg-muted/50 rounded-md cursor-pointer hover-elevate"
-                                onClick={() => lead.id && setLocation(`/leads/${lead.id}`)}
-                                data-testid={`result-lead-${lead.id || index}`}
-                              >
-                                <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm truncate">{lead.institutionName}</span>
-                                {lead.id && <ExternalLink className="h-3 w-3 text-muted-foreground ml-auto" />}
-                              </div>
-                            ))}
+                            {recentJobs.map((job) => {
+                              const StatusIcon = statusIcons[job.status] || Clock;
+                              return (
+                                <div
+                                  key={job.id}
+                                  className="flex items-center gap-3 p-3 rounded-md bg-muted/50"
+                                  data-testid={`playbook-job-${job.id}`}
+                                >
+                                  <StatusIcon className={`h-4 w-4 ${job.status === "running" ? "animate-spin text-blue-500" : job.status === "completed" ? "text-green-500" : "text-muted-foreground"}`} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {job.icpName || "Playbook Scrape"}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <span>{job.leadsFound} leads</span>
+                                      <span>-</span>
+                                      <Badge className={`${statusColors[job.status]} border-0 text-xs`}>
+                                        {job.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </ScrollArea>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setLocation("/leads")}
+                          data-testid="button-view-all-leads"
+                        >
+                          View All Leads
+                        </Button>
                       </div>
-                    )}
-
-                    {playbookResult.errors.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-destructive">Errors:</p>
-                        <div className="space-y-1">
-                          {playbookResult.errors.slice(0, 5).map((error, index) => (
-                            <p key={index} className="text-xs text-muted-foreground">
-                              {error}
-                            </p>
-                          ))}
-                          {playbookResult.errors.length > 5 && (
-                            <p className="text-xs text-muted-foreground">
-                              +{playbookResult.errors.length - 5} more errors
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setLocation("/leads")}
-                      data-testid="button-view-all-leads"
-                    >
-                      View All Leads
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Layers className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                    <p className="text-sm text-muted-foreground">No scrape results yet</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Select an ICP and enter entities to start
-                    </p>
-                  </div>
-                )}
+                    );
+                  }
+                  
+                  return (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <Layers className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                      <p className="text-sm text-muted-foreground">No playbook scrape jobs yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Select an ICP and enter entities to start
+                      </p>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

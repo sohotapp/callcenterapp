@@ -132,6 +132,15 @@ export default function LeadDetail() {
     enabled: leadId > 0,
   });
 
+  const { data: icpMatch } = useQuery<{
+    leadId: number;
+    leadName: string;
+    bestMatch: { icpId: number; icpName: string; matchScore: number } | null;
+  }>({
+    queryKey: ["/api/leads", leadId, "icp-match"],
+    enabled: leadId > 0,
+  });
+
   const currentScript = allScripts?.find(s => s.scriptStyle === selectedStyle);
 
   const generateScriptMutation = useMutation({
@@ -805,6 +814,27 @@ export default function LeadDetail() {
               <InfoItem icon={Users} label="Population" value={lead.population?.toLocaleString()} />
               <InfoItem icon={DollarSign} label="Annual Budget" value={lead.annualBudget} />
               <InfoItem icon={Gauge} label="Tech Maturity" value={lead.techMaturityScore ? `${lead.techMaturityScore}/10` : undefined} />
+              
+              {icpMatch?.bestMatch && (
+                <div className="flex items-start gap-3">
+                  <Target className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                      ICP Match
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{icpMatch.bestMatch.icpName}</span>
+                      <Badge 
+                        variant={icpMatch.bestMatch.matchScore >= 80 ? "default" : icpMatch.bestMatch.matchScore >= 60 ? "secondary" : "outline"}
+                        className="text-xs"
+                        data-testid="badge-icp-match-score"
+                      >
+                        {icpMatch.bestMatch.matchScore}%
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {lead.website && (
                 <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer">

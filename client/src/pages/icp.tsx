@@ -76,10 +76,10 @@ function IcpCard({ profile, matchingCount, onUpdate, isPending }: IcpCardProps) 
       return response as unknown as AiSuggestion;
     },
     onSuccess: (suggestion) => {
-      setEditedDescription(suggestion.description);
-      setEditedCriteria(suggestion.targetCriteria);
-      setEditedQueries(suggestion.searchQueries.join("\n"));
-      setAiRationale(suggestion.rationale);
+      setEditedDescription(suggestion.description || "");
+      setEditedCriteria(suggestion.targetCriteria || {});
+      setEditedQueries((suggestion.searchQueries || []).join("\n"));
+      setAiRationale(suggestion.rationale || null);
       setHasChanges(true);
       toast({
         title: "AI Suggestions Applied",

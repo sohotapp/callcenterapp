@@ -30,6 +30,7 @@ import { calculateLeadScore, scoreAllLeads } from "./scoring";
 import { scrapeRealCountyData } from "./real-data-scraper";
 import { queueAutoScrapeForIcp, findMatchingLeadTargets } from "./icp-scraper";
 import { generateIcpSuggestions } from "./icp-ai";
+import { matchLeadsToIcp, findBestIcpForLead } from "./icp-matcher";
 
 // Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
 let anthropicClient: Anthropic | null = null;
@@ -1156,6 +1157,78 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error generating ICP suggestions:", error);
       res.status(500).json({ error: "Failed to generate AI suggestions" });
+    }
+  });
+
+  // ICP Lead Matching - Get leads scored against ICP criteria
+  app.get("/api/icp/:id/matched-leads", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+      
+      const leads = await storage.getAllLeads();
+      const matchResults = matchLeadsToIcp(leads, profile);
+      
+      // Return top 50 best matches with lead details
+      const topMatches = matchResults.slice(0, 50).map(match => {
+        const lead = leads.find(l => l.id === match.leadId);
+        return {
+          ...match,
+          lead: lead ? {
+            id: lead.id,
+            institutionName: lead.institutionName,
+            department: lead.department,
+            state: lead.state,
+            population: lead.population,
+            techMaturityScore: lead.techMaturityScore,
+            status: lead.status,
+          } : null,
+        };
+      });
+      
+      res.json({
+        icpId: id,
+        icpName: profile.displayName,
+        totalLeads: leads.length,
+        matchedLeads: topMatches,
+      });
+    } catch (error) {
+      console.error("Error matching leads to ICP:", error);
+      res.status(500).json({ error: "Failed to match leads to ICP" });
+    }
+  });
+
+  // Get best ICP match for a specific lead
+  app.get("/api/leads/:id/icp-match", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      const icpProfiles = await storage.getIcpProfiles();
+      const bestMatch = findBestIcpForLead(lead, icpProfiles);
+      
+      res.json({
+        leadId: id,
+        leadName: lead.institutionName,
+        bestMatch,
+      });
+    } catch (error) {
+      console.error("Error finding ICP match for lead:", error);
+      res.status(500).json({ error: "Failed to find ICP match" });
     }
   });
 

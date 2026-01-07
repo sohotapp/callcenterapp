@@ -200,15 +200,26 @@ export async function registerRoutes(
     res.status(200).json({ status: "ok" });
   });
 
-  // Also handle root health check for deployment platforms
-  app.get("/", (req: Request, res: Response, next) => {
-    // If this is a health check (no accept header for HTML), respond quickly
+  // Root endpoint always returns 200 for health checks
+  // For browsers, redirect to the app which will be served by static files
+  app.get("/", (req: Request, res: Response) => {
+    // Always respond with 200 for health checks - they don't accept HTML
     const acceptHeader = req.headers.accept || "";
     if (!acceptHeader.includes("text/html")) {
       return res.status(200).json({ status: "ok" });
     }
-    // Otherwise, let static file serving handle it
-    next();
+    // For browser requests, send minimal HTML that loads the app
+    // This avoids delegating to static file serving which may be slow
+    if (process.env.NODE_ENV === "production") {
+      const fs = require("fs");
+      const path = require("path");
+      const indexPath = path.resolve(__dirname, "public", "index.html");
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+    }
+    // In development, redirect to let Vite handle it
+    return res.status(200).json({ status: "ok" });
   });
 
   app.get("/api/stats", async (req: Request, res: Response) => {

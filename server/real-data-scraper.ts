@@ -114,7 +114,7 @@ Content: ${r.raw_content || r.content}
 ---`)
     .join("\n");
 
-  const prompt = `You are extracting REAL contact information from government website search results.
+  const prompt = `You are extracting REAL contact information from government website search results. Your PRIMARY GOAL is to find DIRECT PHONE NUMBERS and EMAIL ADDRESSES for INDIVIDUAL PEOPLE, not just general office numbers.
 
 COUNTY: ${countyName} County
 STATE: ${state}
@@ -125,27 +125,43 @@ ${combinedContent}
 
 Extract ONLY information that is explicitly stated in the search results. Do NOT make up or guess any information.
 
+PRIORITY ORDER for phone numbers:
+1. DIRECT LINES for specific people (e.g., "John Smith: 555-123-4567") - HIGHEST PRIORITY
+2. Direct extensions (e.g., "ext. 1234")
+3. Cell/mobile numbers if listed
+4. Department main line as fallback
+
 Find:
 1. The official county government website URL (look for .gov domains or official county sites)
-2. A phone number for the ${department} department or general county contact
-3. An email address for the ${department} department (look for patterns like @county.gov, @co.${countyName.toLowerCase()}.${state.toLowerCase()}.us, etc.)
-4. Decision maker name and title for this department (e.g., IT Director, Department Head, County Administrator)
-5. Any additional staff contacts found
+2. The main department phone number (as a fallback)
+3. An email address for the department
+4. Decision maker: Look for the DEPARTMENT HEAD (Director, Manager, Administrator, Chief) - get their DIRECT phone and email if available
+5. ALL additional staff contacts you can find - extract EVERY person with their:
+   - Full name
+   - Title/position
+   - DIRECT phone number (prioritize direct lines over main office)
+   - Personal/direct email address
 
-IMPORTANT: Only include information you can verify from the search results. If you cannot find a piece of information, set it to null.
+IMPORTANT: 
+- Extract AS MANY individual contacts as possible from the search results
+- For each person, try to find their DIRECT phone line, not just the main office number
+- Look for staff directories, org charts, leadership pages, and contact lists
+- Include deputies, assistants, managers, coordinators - anyone with contact info
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "phoneNumber": "extracted phone number or null",
-  "email": "extracted email or null",
+  "phoneNumber": "main department phone or null",
+  "email": "department email or null",
   "website": "official county website URL or null",
-  "decisionMakerName": "name of department head or key official or null",
+  "decisionMakerName": "department head name or null",
   "decisionMakerTitle": "their title or null",
+  "decisionMakerDirectPhone": "their DIRECT phone line or null",
+  "decisionMakerEmail": "their direct email or null",
   "additionalContacts": [
     {
-      "name": "Staff name",
-      "title": "Their title",
-      "phone": "their direct phone or null",
+      "name": "Staff member full name",
+      "title": "Their exact title",
+      "phone": "their DIRECT phone line or null",
       "email": "their email or null"
     }
   ]
@@ -156,7 +172,7 @@ Respond ONLY with valid JSON in this exact format:
       async () => {
         return await getAnthropicClient().messages.create({
           model: "claude-sonnet-4-5",
-          max_tokens: 1000,
+          max_tokens: 2500,
           messages: [{ role: "user", content: prompt }],
         });
       },
@@ -176,13 +192,32 @@ Respond ONLY with valid JSON in this exact format:
     const jsonMatch = content.text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      
+      const additionalContacts = parsed.additionalContacts || [];
+      
+      if (parsed.decisionMakerName) {
+        const existingDecisionMaker = additionalContacts.find(
+          (c: { name: string }) => c.name === parsed.decisionMakerName
+        );
+        if (!existingDecisionMaker) {
+          additionalContacts.unshift({
+            name: parsed.decisionMakerName,
+            title: parsed.decisionMakerTitle || "Department Head",
+            phone: parsed.decisionMakerDirectPhone || null,
+            email: parsed.decisionMakerEmail || null,
+          });
+        } else if (parsed.decisionMakerDirectPhone && !existingDecisionMaker.phone) {
+          existingDecisionMaker.phone = parsed.decisionMakerDirectPhone;
+        }
+      }
+      
       return {
         phoneNumber: parsed.phoneNumber || null,
         email: parsed.email || null,
         website: parsed.website || null,
         decisionMakerName: parsed.decisionMakerName || null,
         decisionMakerTitle: parsed.decisionMakerTitle || null,
-        additionalContacts: parsed.additionalContacts || [],
+        additionalContacts: additionalContacts,
       };
     }
   } catch (error) {
@@ -261,6 +296,9 @@ export async function scrapeRealCountyData(
     `${countyName} county ${state} government official website`,
     `${countyName} county ${stateAbbr} ${department} contact information phone email`,
     `${countyName} county ${state} ${department} department staff directory`,
+    `${countyName} county ${state} ${department} director phone number email address`,
+    `${countyName} county ${stateAbbr} employee phone directory leadership team`,
+    `site:${countyName.toLowerCase().replace(/\s+/g, '')}county.gov OR site:co.${countyName.toLowerCase().replace(/\s+/g, '')}.${stateAbbr.toLowerCase()}.us staff directory phone`,
   ];
 
   const allResults: TavilyResult[] = [];

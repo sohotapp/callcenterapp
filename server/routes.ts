@@ -1564,6 +1564,47 @@ Focus on making the content compelling for enterprise and government decision-ma
     }
   });
 
+  // GET /api/leads/:id/icp-match - get best ICP match for a lead
+  app.get("/api/leads/:id/icp-match", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const icpProfiles = await storage.getAllIcpProfiles();
+      const activeProfiles = icpProfiles.filter(p => p.isActive);
+      
+      if (activeProfiles.length === 0) {
+        return res.json({
+          leadId: id,
+          leadName: lead.institutionName,
+          bestMatch: null,
+        });
+      }
+
+      const bestMatch = findBestIcpForLead(lead, activeProfiles);
+      
+      res.json({
+        leadId: id,
+        leadName: lead.institutionName,
+        bestMatch: bestMatch ? {
+          icpId: bestMatch.icpId,
+          icpName: bestMatch.icpName,
+          matchScore: bestMatch.matchScore,
+        } : null,
+      });
+    } catch (error) {
+      console.error("Error finding ICP match:", error);
+      res.status(500).json({ error: "Failed to find ICP match" });
+    }
+  });
+
   // ============================================
   // EMAIL SEQUENCE ENDPOINTS
   // ============================================

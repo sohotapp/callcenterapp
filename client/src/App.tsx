@@ -14,6 +14,7 @@ import ScrapePage from "@/pages/scrape";
 import ExportPage from "@/pages/export";
 import SettingsPage from "@/pages/settings";
 import IcpPage from "@/pages/icp";
+import AnalyticsPage from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/scrape" component={ScrapePage} />
       <Route path="/export" component={ExportPage} />
       <Route path="/icp" component={IcpPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

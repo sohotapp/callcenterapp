@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, count } from "drizzle-orm";
 import {
   users,
   governmentLeads,
@@ -8,6 +8,10 @@ import {
   callLogs,
   scrapeJobs,
   icpProfiles,
+  emailSequences,
+  sequenceSteps,
+  sequenceEnrollments,
+  outreachActivities,
   type User,
   type InsertUser,
   type GovernmentLead,
@@ -27,6 +31,16 @@ import {
   type CompetitorAnalysis,
   type ScriptStyle,
   type ScoringBreakdown,
+  type EmailSequence,
+  type InsertEmailSequence,
+  type SequenceStep,
+  type InsertSequenceStep,
+  type SequenceEnrollment,
+  type InsertSequenceEnrollment,
+  type EmailSequenceWithSteps,
+  type OutreachActivity,
+  type InsertOutreachActivity,
+  type CallOutcome,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -84,6 +98,48 @@ export interface IStorage {
   updateIcpProfile(id: number, profile: Partial<InsertIcpProfile>): Promise<IcpProfile | undefined>;
   seedDefaultIcps(): Promise<void>;
   countMatchingLeads(icpId: number): Promise<number>;
+
+  // Email Sequences
+  getAllSequences(): Promise<EmailSequence[]>;
+  getSequence(id: number): Promise<EmailSequence | undefined>;
+  getSequenceWithSteps(id: number): Promise<EmailSequenceWithSteps | undefined>;
+  createSequence(sequence: InsertEmailSequence): Promise<EmailSequence>;
+  updateSequence(id: number, sequence: Partial<InsertEmailSequence>): Promise<EmailSequence | undefined>;
+  deleteSequence(id: number): Promise<boolean>;
+
+  // Sequence Steps
+  getStepsBySequenceId(sequenceId: number): Promise<SequenceStep[]>;
+  getStep(id: number): Promise<SequenceStep | undefined>;
+  createStep(step: InsertSequenceStep): Promise<SequenceStep>;
+  updateStep(id: number, step: Partial<InsertSequenceStep>): Promise<SequenceStep | undefined>;
+  deleteStep(id: number): Promise<boolean>;
+
+  // Sequence Enrollments
+  getEnrollmentsBySequenceId(sequenceId: number): Promise<SequenceEnrollment[]>;
+  getEnrollmentsByLeadId(leadId: number): Promise<SequenceEnrollment[]>;
+  getEnrollment(id: number): Promise<SequenceEnrollment | undefined>;
+  createEnrollment(enrollment: InsertSequenceEnrollment): Promise<SequenceEnrollment>;
+  updateEnrollment(id: number, enrollment: Partial<InsertSequenceEnrollment>): Promise<SequenceEnrollment | undefined>;
+  deleteEnrollment(id: number): Promise<boolean>;
+
+  // Outreach Activities
+  createActivity(activity: InsertOutreachActivity): Promise<OutreachActivity>;
+  getActivitiesByLead(leadId: number): Promise<OutreachActivity[]>;
+  getActivitiesBySequence(sequenceId: number): Promise<OutreachActivity[]>;
+  getActivityStats(): Promise<ActivityStats>;
+  updateLeadCallOutcome(leadId: number, outcome: CallOutcome, notes?: string): Promise<GovernmentLead | undefined>;
+}
+
+export interface ActivityStats {
+  totalActivities: number;
+  emailsSent: number;
+  emailsOpened: number;
+  emailsReplied: number;
+  callsMade: number;
+  callsAnswered: number;
+  linkedinSent: number;
+  linkedinConnected: number;
+  meetingsScheduled: number;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -401,6 +457,227 @@ export class DatabaseStorage implements IStorage {
     for (const icp of defaultIcps) {
       await db.insert(icpProfiles).values(icp);
     }
+  }
+
+  // Email Sequences CRUD
+  async getAllSequences(): Promise<EmailSequence[]> {
+    return db.select().from(emailSequences).orderBy(desc(emailSequences.createdAt));
+  }
+
+  async getSequence(id: number): Promise<EmailSequence | undefined> {
+    const [sequence] = await db.select().from(emailSequences).where(eq(emailSequences.id, id));
+    return sequence;
+  }
+
+  async getSequenceWithSteps(id: number): Promise<EmailSequenceWithSteps | undefined> {
+    const sequence = await this.getSequence(id);
+    if (!sequence) return undefined;
+    const steps = await this.getStepsBySequenceId(id);
+    return { ...sequence, steps };
+  }
+
+  async createSequence(insertSequence: InsertEmailSequence): Promise<EmailSequence> {
+    const [sequence] = await db.insert(emailSequences).values(insertSequence).returning();
+    return sequence;
+  }
+
+  async updateSequence(id: number, updates: Partial<InsertEmailSequence>): Promise<EmailSequence | undefined> {
+    const [sequence] = await db
+      .update(emailSequences)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(emailSequences.id, id))
+      .returning();
+    return sequence;
+  }
+
+  async deleteSequence(id: number): Promise<boolean> {
+    await db.delete(emailSequences).where(eq(emailSequences.id, id));
+    return true;
+  }
+
+  // Sequence Steps CRUD
+  async getStepsBySequenceId(sequenceId: number): Promise<SequenceStep[]> {
+    return db.select().from(sequenceSteps).where(eq(sequenceSteps.sequenceId, sequenceId)).orderBy(sequenceSteps.stepNumber);
+  }
+
+  async getStep(id: number): Promise<SequenceStep | undefined> {
+    const [step] = await db.select().from(sequenceSteps).where(eq(sequenceSteps.id, id));
+    return step;
+  }
+
+  async createStep(insertStep: InsertSequenceStep): Promise<SequenceStep> {
+    const [step] = await db.insert(sequenceSteps).values(insertStep).returning();
+    return step;
+  }
+
+  async updateStep(id: number, updates: Partial<InsertSequenceStep>): Promise<SequenceStep | undefined> {
+    const [step] = await db
+      .update(sequenceSteps)
+      .set(updates)
+      .where(eq(sequenceSteps.id, id))
+      .returning();
+    return step;
+  }
+
+  async deleteStep(id: number): Promise<boolean> {
+    await db.delete(sequenceSteps).where(eq(sequenceSteps.id, id));
+    return true;
+  }
+
+  // Sequence Enrollments CRUD
+  async getEnrollmentsBySequenceId(sequenceId: number): Promise<SequenceEnrollment[]> {
+    return db.select().from(sequenceEnrollments).where(eq(sequenceEnrollments.sequenceId, sequenceId)).orderBy(desc(sequenceEnrollments.enrolledAt));
+  }
+
+  async getEnrollmentsByLeadId(leadId: number): Promise<SequenceEnrollment[]> {
+    return db.select().from(sequenceEnrollments).where(eq(sequenceEnrollments.leadId, leadId)).orderBy(desc(sequenceEnrollments.enrolledAt));
+  }
+
+  async getEnrollment(id: number): Promise<SequenceEnrollment | undefined> {
+    const [enrollment] = await db.select().from(sequenceEnrollments).where(eq(sequenceEnrollments.id, id));
+    return enrollment;
+  }
+
+  async createEnrollment(insertEnrollment: InsertSequenceEnrollment): Promise<SequenceEnrollment> {
+    const [enrollment] = await db.insert(sequenceEnrollments).values(insertEnrollment).returning();
+    return enrollment;
+  }
+
+  async updateEnrollment(id: number, updates: Partial<InsertSequenceEnrollment>): Promise<SequenceEnrollment | undefined> {
+    const [enrollment] = await db
+      .update(sequenceEnrollments)
+      .set(updates)
+      .where(eq(sequenceEnrollments.id, id))
+      .returning();
+    return enrollment;
+  }
+
+  async deleteEnrollment(id: number): Promise<boolean> {
+    await db.delete(sequenceEnrollments).where(eq(sequenceEnrollments.id, id));
+    return true;
+  }
+
+  // Outreach Activities
+  async createActivity(insertActivity: InsertOutreachActivity): Promise<OutreachActivity> {
+    const [activity] = await db.insert(outreachActivities).values(insertActivity).returning();
+    
+    // Update lead status based on activity type
+    const statusUpdates: Partial<{ status: string; lastContactedAt: Date }> = {
+      lastContactedAt: new Date(),
+    };
+    
+    // Update lead status based on activity type
+    if (insertActivity.type === "email_replied") {
+      statusUpdates.status = "follow_up";
+    } else if (insertActivity.outcome === "meeting_scheduled") {
+      statusUpdates.status = "qualified";
+    } else if (insertActivity.outcome === "interested") {
+      statusUpdates.status = "follow_up";
+    } else if (insertActivity.outcome === "not_interested") {
+      statusUpdates.status = "closed_lost";
+    } else if (insertActivity.type === "email_sent" || insertActivity.type === "call_made" || insertActivity.type === "linkedin_sent") {
+      // Only update to contacted if currently not_contacted
+      const lead = await this.getLead(insertActivity.leadId);
+      if (lead && lead.status === "not_contacted") {
+        statusUpdates.status = "contacted";
+      }
+    }
+    
+    await db
+      .update(governmentLeads)
+      .set({ ...statusUpdates, updatedAt: new Date() })
+      .where(eq(governmentLeads.id, insertActivity.leadId));
+    
+    return activity;
+  }
+
+  async getActivitiesByLead(leadId: number): Promise<OutreachActivity[]> {
+    return db.select().from(outreachActivities).where(eq(outreachActivities.leadId, leadId)).orderBy(desc(outreachActivities.createdAt));
+  }
+
+  async getActivitiesBySequence(sequenceId: number): Promise<OutreachActivity[]> {
+    return db.select().from(outreachActivities).where(eq(outreachActivities.sequenceId, sequenceId)).orderBy(desc(outreachActivities.createdAt));
+  }
+
+  async getActivityStats(): Promise<ActivityStats> {
+    const activities = await db.select().from(outreachActivities);
+    
+    const stats: ActivityStats = {
+      totalActivities: activities.length,
+      emailsSent: 0,
+      emailsOpened: 0,
+      emailsReplied: 0,
+      callsMade: 0,
+      callsAnswered: 0,
+      linkedinSent: 0,
+      linkedinConnected: 0,
+      meetingsScheduled: 0,
+    };
+    
+    for (const activity of activities) {
+      switch (activity.type) {
+        case "email_sent":
+          stats.emailsSent++;
+          break;
+        case "email_opened":
+          stats.emailsOpened++;
+          break;
+        case "email_replied":
+          stats.emailsReplied++;
+          break;
+        case "call_made":
+          stats.callsMade++;
+          break;
+        case "call_answered":
+          stats.callsAnswered++;
+          break;
+        case "linkedin_sent":
+          stats.linkedinSent++;
+          break;
+        case "linkedin_connected":
+          stats.linkedinConnected++;
+          break;
+      }
+      if (activity.outcome === "meeting_scheduled") {
+        stats.meetingsScheduled++;
+      }
+    }
+    
+    return stats;
+  }
+
+  async updateLeadCallOutcome(leadId: number, outcome: CallOutcome, notes?: string): Promise<GovernmentLead | undefined> {
+    // Determine new status based on outcome
+    let newStatus: string | undefined;
+    if (outcome === "meeting_scheduled") {
+      newStatus = "qualified";
+    } else if (outcome === "interested" || outcome === "callback_scheduled") {
+      newStatus = "follow_up";
+    } else if (outcome === "not_interested") {
+      newStatus = "closed_lost";
+    }
+    
+    const updates: Record<string, unknown> = {
+      lastCallOutcome: outcome,
+      lastContactedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    if (notes) {
+      updates.callNotes = notes;
+    }
+    
+    if (newStatus) {
+      updates.status = newStatus;
+    }
+    
+    const [lead] = await db
+      .update(governmentLeads)
+      .set(updates)
+      .where(eq(governmentLeads.id, leadId))
+      .returning();
+    
+    return lead;
   }
 }
 

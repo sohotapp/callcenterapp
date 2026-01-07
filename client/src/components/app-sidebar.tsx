@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Settings,
   Target,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,6 +42,11 @@ const mainNavItems = [
     title: "ICP Builder",
     url: "/icp",
     icon: Target,
+  },
+  {
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
   },
 ];
 

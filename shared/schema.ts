@@ -101,6 +101,8 @@ export const governmentLeads = pgTable("government_leads", {
   painPoints: text("pain_points").array(),
   notes: text("notes"),
   lastContactedAt: timestamp("last_contacted_at"),
+  lastCallOutcome: text("last_call_outcome"), // no_answer, voicemail, callback_scheduled, not_interested, interested, meeting_scheduled
+  callNotes: text("call_notes"),
   // Lead enrichment fields
   decisionMakers: jsonb("decision_makers").$type<DecisionMaker[]>(),
   techStack: text("tech_stack").array(),
@@ -254,6 +256,7 @@ export const icpProfiles = pgTable("icp_profiles", {
   displayName: text("display_name").notNull(),
   description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
+  autoScrapeEnabled: boolean("auto_scrape_enabled").notNull().default(false),
   targetCriteria: jsonb("target_criteria").$type<TargetCriteria>(),
   searchQueries: text("search_queries").array(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -268,3 +271,136 @@ export const insertIcpProfileSchema = createInsertSchema(icpProfiles).omit({
 
 export type InsertIcpProfile = z.infer<typeof insertIcpProfileSchema>;
 export type IcpProfile = typeof icpProfiles.$inferSelect;
+
+// Email Sequence status types
+export const sequenceStatuses = ["draft", "active", "paused"] as const;
+export type SequenceStatus = typeof sequenceStatuses[number];
+
+// Enrollment status types
+export const enrollmentStatuses = ["active", "completed", "unsubscribed"] as const;
+export type EnrollmentStatus = typeof enrollmentStatuses[number];
+
+// Email Sequences - multi-step email campaigns
+export const emailSequences = pgTable("email_sequences", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft, active, paused
+  icpId: integer("icp_id").references(() => icpProfiles.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertEmailSequenceSchema = createInsertSchema(emailSequences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEmailSequence = z.infer<typeof insertEmailSequenceSchema>;
+export type EmailSequence = typeof emailSequences.$inferSelect;
+
+// Sequence Steps - individual email steps within a sequence
+export const sequenceSteps = pgTable("sequence_steps", {
+  id: serial("id").primaryKey(),
+  sequenceId: integer("sequence_id").notNull().references(() => emailSequences.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull(),
+  subject: text("subject").notNull(),
+  bodyTemplate: text("body_template").notNull(),
+  delayDays: integer("delay_days").notNull().default(0),
+  delayHours: integer("delay_hours").notNull().default(0),
+  includeIfCondition: text("include_if_condition"), // e.g., "hasEmail", "hasBuyingSignals"
+});
+
+export const insertSequenceStepSchema = createInsertSchema(sequenceSteps).omit({
+  id: true,
+});
+
+export type InsertSequenceStep = z.infer<typeof insertSequenceStepSchema>;
+export type SequenceStep = typeof sequenceSteps.$inferSelect;
+
+// Sequence Enrollments - track leads enrolled in sequences
+export const sequenceEnrollments = pgTable("sequence_enrollments", {
+  id: serial("id").primaryKey(),
+  sequenceId: integer("sequence_id").notNull().references(() => emailSequences.id, { onDelete: "cascade" }),
+  leadId: integer("lead_id").notNull().references(() => governmentLeads.id, { onDelete: "cascade" }),
+  currentStep: integer("current_step").notNull().default(1),
+  status: text("status").notNull().default("active"), // active, completed, unsubscribed
+  enrolledAt: timestamp("enrolled_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  lastStepSentAt: timestamp("last_step_sent_at"),
+  nextStepAt: timestamp("next_step_at"),
+});
+
+export const insertSequenceEnrollmentSchema = createInsertSchema(sequenceEnrollments).omit({
+  id: true,
+  enrolledAt: true,
+});
+
+export type InsertSequenceEnrollment = z.infer<typeof insertSequenceEnrollmentSchema>;
+export type SequenceEnrollment = typeof sequenceEnrollments.$inferSelect;
+
+// Type for sequence with its steps
+export type EmailSequenceWithSteps = EmailSequence & {
+  steps: SequenceStep[];
+};
+
+// Activity types for outreach tracking
+export const activityTypes = [
+  "email_sent",
+  "email_opened",
+  "email_replied",
+  "call_made",
+  "call_answered",
+  "linkedin_sent",
+  "linkedin_connected"
+] as const;
+export type ActivityType = typeof activityTypes[number];
+
+// Activity channel types
+export const activityChannels = ["email", "phone", "linkedin"] as const;
+export type ActivityChannel = typeof activityChannels[number];
+
+// Call outcome types
+export const callOutcomes = [
+  "no_answer",
+  "voicemail",
+  "callback_scheduled",
+  "not_interested",
+  "interested",
+  "meeting_scheduled"
+] as const;
+export type CallOutcome = typeof callOutcomes[number];
+
+// Activity metadata schema for JSONB storage
+export const activityMetadataSchema = z.object({
+  openCount: z.number().optional(),
+  clickedLinks: z.array(z.string()).optional(),
+  emailSubject: z.string().optional(),
+  linkedinProfileUrl: z.string().optional(),
+  callRecordingUrl: z.string().optional(),
+}).passthrough();
+
+export type ActivityMetadata = z.infer<typeof activityMetadataSchema>;
+
+// Outreach Activities - track all outreach activities for leads
+export const outreachActivities = pgTable("outreach_activities", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").notNull().references(() => governmentLeads.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // email_sent, email_opened, email_replied, call_made, call_answered, linkedin_sent, linkedin_connected
+  channel: text("channel").notNull(), // email, phone, linkedin
+  sequenceId: integer("sequence_id").references(() => emailSequences.id, { onDelete: "set null" }),
+  stepNumber: integer("step_number"),
+  notes: text("notes"),
+  outcome: text("outcome"), // for calls: no_answer, voicemail, callback_scheduled, not_interested, interested, meeting_scheduled
+  duration: integer("duration"), // call duration in seconds
+  metadata: jsonb("metadata").$type<ActivityMetadata>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertOutreachActivitySchema = createInsertSchema(outreachActivities).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertOutreachActivity = z.infer<typeof insertOutreachActivitySchema>;
+export type OutreachActivity = typeof outreachActivities.$inferSelect;

@@ -3,7 +3,22 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { insertGovernmentLeadSchema, insertScrapeJobSchema, insertIcpProfileSchema, targetCriteriaSchema, scriptStyles, type ScriptStyle } from "@shared/schema";
+import { 
+  insertGovernmentLeadSchema, 
+  insertScrapeJobSchema, 
+  insertIcpProfileSchema, 
+  targetCriteriaSchema, 
+  scriptStyles, 
+  type ScriptStyle,
+  insertEmailSequenceSchema,
+  insertSequenceStepSchema,
+  insertOutreachActivitySchema,
+  type GovernmentLead,
+  sequenceStatuses,
+  activityTypes,
+  activityChannels,
+  callOutcomes,
+} from "@shared/schema";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 import { 
@@ -16,6 +31,7 @@ import {
 import { enrichLead, enrichLeadsBatch, enrichLeadWithRealData } from "./enrichment";
 import { calculateLeadScore, scoreAllLeads } from "./scoring";
 import { scrapeRealCountyData } from "./real-data-scraper";
+import { queueAutoScrapeForIcp, findMatchingLeadTargets } from "./icp-scraper";
 
 // Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
 let anthropicClient: Anthropic | null = null;
@@ -1084,6 +1100,7 @@ Focus on making the content compelling for enterprise and government decision-ma
     displayName: z.string().optional(),
     description: z.string().optional(),
     isActive: z.boolean().optional(),
+    autoScrapeEnabled: z.boolean().optional(),
     targetCriteria: targetCriteriaSchema.optional(),
     searchQueries: z.array(z.string()).optional(),
   });
@@ -1104,7 +1121,20 @@ Focus on making the content compelling for enterprise and government decision-ma
       if (!profile) {
         return res.status(404).json({ error: "ICP profile not found" });
       }
-      res.json(profile);
+      
+      let scrapeJobId: number | null = null;
+      if (profile.autoScrapeEnabled) {
+        const scrapeJob = await queueAutoScrapeForIcp(id);
+        if (scrapeJob) {
+          scrapeJobId = scrapeJob.id;
+        }
+      }
+      
+      res.json({ 
+        ...profile, 
+        scrapeJobId,
+        autoScrapeTriggered: scrapeJobId !== null 
+      });
     } catch (error) {
       console.error("Error updating ICP profile:", error);
       res.status(500).json({ error: "Failed to update ICP profile" });
@@ -1122,6 +1152,77 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error counting matching leads:", error);
       res.status(500).json({ error: "Failed to count matching leads" });
+    }
+  });
+
+  app.post("/api/icp/:id/trigger-scrape", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+      
+      const targets = findMatchingLeadTargets(profile);
+      if (targets.length === 0) {
+        return res.status(400).json({ 
+          error: "No matching targets found",
+          message: "No counties match the ICP criteria. Please update the target criteria."
+        });
+      }
+      
+      const scrapeJob = await queueAutoScrapeForIcp(id);
+      if (!scrapeJob) {
+        return res.status(500).json({ error: "Failed to create scrape job" });
+      }
+      
+      res.json({
+        message: `Scrape job started for ICP: ${profile.displayName}`,
+        scrapeJobId: scrapeJob.id,
+        targetCounties: targets.length,
+        states: [...new Set(targets.map(t => t.county.state))],
+      });
+    } catch (error) {
+      console.error("Error triggering ICP scrape:", error);
+      res.status(500).json({ error: "Failed to trigger ICP scrape" });
+    }
+  });
+
+  app.get("/api/icp/:id/matching-targets", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+      
+      const targets = findMatchingLeadTargets(profile);
+      const states = [...new Set(targets.map(t => t.county.state))];
+      
+      res.json({
+        icpId: id,
+        icpName: profile.displayName,
+        totalCounties: targets.length,
+        states,
+        criteria: profile.targetCriteria,
+        targets: targets.slice(0, 50).map(t => ({
+          county: t.county.name,
+          state: t.county.state,
+          population: t.county.population,
+          departments: t.departments,
+        })),
+      });
+    } catch (error) {
+      console.error("Error fetching matching targets:", error);
+      res.status(500).json({ error: "Failed to fetch matching targets" });
     }
   });
 
@@ -1386,5 +1487,725 @@ Focus on making the content compelling for enterprise and government decision-ma
     }
   });
 
+  // ============================================
+  // EMAIL SEQUENCE ENDPOINTS
+  // ============================================
+
+  // GET /api/sequences - list all sequences
+  app.get("/api/sequences", async (req: Request, res: Response) => {
+    try {
+      const sequences = await storage.getAllSequences();
+      res.json(sequences);
+    } catch (error) {
+      console.error("Error fetching sequences:", error);
+      res.status(500).json({ error: "Failed to fetch sequences" });
+    }
+  });
+
+  // POST /api/sequences - create new sequence
+  app.post("/api/sequences", async (req: Request, res: Response) => {
+    try {
+      const parseResult = insertEmailSequenceSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const sequence = await storage.createSequence(parseResult.data);
+      res.status(201).json(sequence);
+    } catch (error) {
+      console.error("Error creating sequence:", error);
+      res.status(500).json({ error: "Failed to create sequence" });
+    }
+  });
+
+  // GET /api/sequences/:id - get sequence with steps
+  app.get("/api/sequences/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const sequenceWithSteps = await storage.getSequenceWithSteps(id);
+      if (!sequenceWithSteps) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      res.json(sequenceWithSteps);
+    } catch (error) {
+      console.error("Error fetching sequence:", error);
+      res.status(500).json({ error: "Failed to fetch sequence" });
+    }
+  });
+
+  // PUT /api/sequences/:id - update sequence
+  app.put("/api/sequences/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const updateSchema = insertEmailSequenceSchema.partial();
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const sequence = await storage.updateSequence(id, parseResult.data);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      res.json(sequence);
+    } catch (error) {
+      console.error("Error updating sequence:", error);
+      res.status(500).json({ error: "Failed to update sequence" });
+    }
+  });
+
+  // DELETE /api/sequences/:id - delete sequence
+  app.delete("/api/sequences/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const sequence = await storage.getSequence(id);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      await storage.deleteSequence(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting sequence:", error);
+      res.status(500).json({ error: "Failed to delete sequence" });
+    }
+  });
+
+  // POST /api/sequences/:id/steps - add step to sequence
+  app.post("/api/sequences/:id/steps", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      if (isNaN(sequenceId)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const sequence = await storage.getSequence(sequenceId);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      const stepData = { ...req.body, sequenceId };
+      const parseResult = insertSequenceStepSchema.safeParse(stepData);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const step = await storage.createStep(parseResult.data);
+      res.status(201).json(step);
+    } catch (error) {
+      console.error("Error creating step:", error);
+      res.status(500).json({ error: "Failed to create step" });
+    }
+  });
+
+  // PUT /api/sequences/:id/steps/:stepId - update step
+  app.put("/api/sequences/:id/steps/:stepId", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      const stepId = parseInt(req.params.stepId);
+      if (isNaN(sequenceId) || isNaN(stepId)) {
+        return res.status(400).json({ error: "Invalid sequence or step ID" });
+      }
+      const existingStep = await storage.getStep(stepId);
+      if (!existingStep || existingStep.sequenceId !== sequenceId) {
+        return res.status(404).json({ error: "Step not found in this sequence" });
+      }
+      const updateSchema = insertSequenceStepSchema.partial().omit({ sequenceId: true });
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const step = await storage.updateStep(stepId, parseResult.data);
+      res.json(step);
+    } catch (error) {
+      console.error("Error updating step:", error);
+      res.status(500).json({ error: "Failed to update step" });
+    }
+  });
+
+  // DELETE /api/sequences/:id/steps/:stepId - delete step
+  app.delete("/api/sequences/:id/steps/:stepId", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      const stepId = parseInt(req.params.stepId);
+      if (isNaN(sequenceId) || isNaN(stepId)) {
+        return res.status(400).json({ error: "Invalid sequence or step ID" });
+      }
+      const existingStep = await storage.getStep(stepId);
+      if (!existingStep || existingStep.sequenceId !== sequenceId) {
+        return res.status(404).json({ error: "Step not found in this sequence" });
+      }
+      await storage.deleteStep(stepId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting step:", error);
+      res.status(500).json({ error: "Failed to delete step" });
+    }
+  });
+
+  // POST /api/sequences/:id/enroll - enroll leads in sequence
+  const enrollLeadsSchema = z.object({
+    leadIds: z.array(z.number()).min(1, "At least one lead ID is required"),
+  });
+
+  app.post("/api/sequences/:id/enroll", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      if (isNaN(sequenceId)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const sequence = await storage.getSequence(sequenceId);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      const parseResult = enrollLeadsSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const { leadIds } = parseResult.data;
+      const enrollments = [];
+      const errors = [];
+      for (const leadId of leadIds) {
+        try {
+          const lead = await storage.getLead(leadId);
+          if (!lead) {
+            errors.push({ leadId, error: "Lead not found" });
+            continue;
+          }
+          const existingEnrollments = await storage.getEnrollmentsByLeadId(leadId);
+          const alreadyEnrolled = existingEnrollments.find(
+            (e) => e.sequenceId === sequenceId && e.status === "active"
+          );
+          if (alreadyEnrolled) {
+            errors.push({ leadId, error: "Lead already enrolled in this sequence" });
+            continue;
+          }
+          const steps = await storage.getStepsBySequenceId(sequenceId);
+          const firstStep = steps.find(s => s.stepNumber === 1);
+          const nextStepAt = firstStep 
+            ? new Date(Date.now() + (firstStep.delayDays * 24 * 60 * 60 * 1000) + (firstStep.delayHours * 60 * 60 * 1000))
+            : null;
+          const enrollment = await storage.createEnrollment({
+            sequenceId,
+            leadId,
+            currentStep: 1,
+            status: "active",
+            nextStepAt,
+          });
+          enrollments.push(enrollment);
+        } catch (err) {
+          errors.push({ leadId, error: "Failed to enroll lead" });
+        }
+      }
+      res.status(201).json({
+        message: `Enrolled ${enrollments.length} leads successfully`,
+        enrollments,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error) {
+      console.error("Error enrolling leads:", error);
+      res.status(500).json({ error: "Failed to enroll leads" });
+    }
+  });
+
+  // GET /api/sequences/:id/enrollments - get enrollments for a sequence
+  app.get("/api/sequences/:id/enrollments", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      if (isNaN(sequenceId)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const sequence = await storage.getSequence(sequenceId);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+      const enrollments = await storage.getEnrollmentsBySequenceId(sequenceId);
+      res.json(enrollments);
+    } catch (error) {
+      console.error("Error fetching enrollments:", error);
+      res.status(500).json({ error: "Failed to fetch enrollments" });
+    }
+  });
+
+  // POST /api/sequences/:id/render-template - render template with lead data
+  const renderTemplateSchema = z.object({
+    leadId: z.number(),
+    subject: z.string().optional(),
+    bodyTemplate: z.string(),
+  });
+
+  app.post("/api/sequences/:id/render-template", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      if (isNaN(sequenceId)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+      const parseResult = renderTemplateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      const { leadId, subject, bodyTemplate } = parseResult.data;
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      const renderedSubject = subject ? renderEmailTemplate(subject, lead) : undefined;
+      const renderedBody = renderEmailTemplate(bodyTemplate, lead);
+      res.json({
+        subject: renderedSubject,
+        body: renderedBody,
+        variables: getAvailableTemplateVariables(),
+      });
+    } catch (error) {
+      console.error("Error rendering template:", error);
+      res.status(500).json({ error: "Failed to render template" });
+    }
+  });
+
+  // GET /api/template-variables - get list of available template variables
+  app.get("/api/template-variables", (req: Request, res: Response) => {
+    res.json(getAvailableTemplateVariables());
+  });
+
+  // ============================================
+  // OUTREACH ACTIVITY TRACKING ENDPOINTS
+  // ============================================
+
+  // Validation schemas for activities
+  const createActivitySchema = z.object({
+    leadId: z.number(),
+    type: z.enum(activityTypes),
+    channel: z.enum(activityChannels),
+    sequenceId: z.number().nullable().optional(),
+    stepNumber: z.number().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    outcome: z.enum(callOutcomes).nullable().optional(),
+    duration: z.number().nullable().optional(),
+    metadata: z.record(z.unknown()).nullable().optional(),
+  });
+
+  const updateCallOutcomeSchema = z.object({
+    outcome: z.enum(callOutcomes),
+    notes: z.string().optional(),
+  });
+
+  // POST /api/activities - log a new activity
+  app.post("/api/activities", async (req: Request, res: Response) => {
+    try {
+      const parseResult = createActivitySchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+
+      const lead = await storage.getLead(parseResult.data.leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const activity = await storage.createActivity(parseResult.data);
+      res.status(201).json(activity);
+    } catch (error) {
+      console.error("Error creating activity:", error);
+      res.status(500).json({ error: "Failed to create activity" });
+    }
+  });
+
+  // GET /api/activities/stats - get aggregated activity stats
+  app.get("/api/activities/stats", async (req: Request, res: Response) => {
+    try {
+      const stats = await storage.getActivityStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching activity stats:", error);
+      res.status(500).json({ error: "Failed to fetch activity stats" });
+    }
+  });
+
+  // GET /api/leads/:id/activities - get activities for a lead
+  app.get("/api/leads/:id/activities", async (req: Request, res: Response) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      if (isNaN(leadId)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const activities = await storage.getActivitiesByLead(leadId);
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching lead activities:", error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // GET /api/sequences/:id/activities - get activities for a sequence
+  app.get("/api/sequences/:id/activities", async (req: Request, res: Response) => {
+    try {
+      const sequenceId = parseInt(req.params.id);
+      if (isNaN(sequenceId)) {
+        return res.status(400).json({ error: "Invalid sequence ID" });
+      }
+
+      const sequence = await storage.getSequence(sequenceId);
+      if (!sequence) {
+        return res.status(404).json({ error: "Sequence not found" });
+      }
+
+      const activities = await storage.getActivitiesBySequence(sequenceId);
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching sequence activities:", error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // PATCH /api/leads/:id/call-outcome - update lead with call outcome and log activity
+  app.patch("/api/leads/:id/call-outcome", async (req: Request, res: Response) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      if (isNaN(leadId)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+
+      const parseResult = updateCallOutcomeSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+
+      const existingLead = await storage.getLead(leadId);
+      if (!existingLead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const { outcome, notes } = parseResult.data;
+
+      // Update lead with call outcome
+      const updatedLead = await storage.updateLeadCallOutcome(leadId, outcome, notes);
+      if (!updatedLead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Also log an activity for this call
+      const activityType = outcome === "no_answer" || outcome === "voicemail" ? "call_made" : "call_answered";
+      await storage.createActivity({
+        leadId,
+        type: activityType,
+        channel: "phone",
+        outcome,
+        notes: notes || null,
+      });
+
+      res.json(updatedLead);
+    } catch (error) {
+      console.error("Error updating call outcome:", error);
+      res.status(500).json({ error: "Failed to update call outcome" });
+    }
+  });
+
+  // ============================================
+  // ANALYTICS ENDPOINTS
+  // ============================================
+
+  // Conversion funnel data
+  app.get("/api/analytics/funnel", async (req: Request, res: Response) => {
+    try {
+      const leads = await storage.getAllLeads();
+      const activityStats = await storage.getActivityStats();
+
+      const funnel = {
+        totalLeads: leads.length,
+        enrichedLeads: leads.filter(l => l.enrichedAt !== null).length,
+        contactedLeads: leads.filter(l => l.status !== "not_contacted").length,
+        respondedLeads: leads.filter(l => 
+          l.lastCallOutcome === "interested" || 
+          l.lastCallOutcome === "callback_scheduled" || 
+          l.lastCallOutcome === "meeting_scheduled"
+        ).length,
+        meetingsBooked: leads.filter(l => l.lastCallOutcome === "meeting_scheduled").length,
+        wonDeals: leads.filter(l => l.status === "closed_won").length,
+      };
+
+      res.json(funnel);
+    } catch (error) {
+      console.error("Error fetching funnel data:", error);
+      res.status(500).json({ error: "Failed to fetch funnel data" });
+    }
+  });
+
+  // Response rates by channel
+  app.get("/api/analytics/response-rates", async (req: Request, res: Response) => {
+    try {
+      const activityStats = await storage.getActivityStats();
+
+      const responseRates = {
+        email: {
+          sent: activityStats.emailsSent,
+          opened: activityStats.emailsOpened,
+          replied: activityStats.emailsReplied,
+          openRate: activityStats.emailsSent > 0 
+            ? Math.round((activityStats.emailsOpened / activityStats.emailsSent) * 100) 
+            : 0,
+          replyRate: activityStats.emailsSent > 0 
+            ? Math.round((activityStats.emailsReplied / activityStats.emailsSent) * 100) 
+            : 0,
+        },
+        phone: {
+          callsMade: activityStats.callsMade,
+          answered: activityStats.callsAnswered,
+          meetingsBooked: activityStats.meetingsScheduled,
+          answerRate: activityStats.callsMade > 0 
+            ? Math.round((activityStats.callsAnswered / activityStats.callsMade) * 100) 
+            : 0,
+        },
+        linkedin: {
+          sent: activityStats.linkedinSent,
+          connected: activityStats.linkedinConnected,
+          replied: 0, // Not tracked separately in current schema
+        },
+      };
+
+      res.json(responseRates);
+    } catch (error) {
+      console.error("Error fetching response rates:", error);
+      res.status(500).json({ error: "Failed to fetch response rates" });
+    }
+  });
+
+  // Performance by ICP
+  app.get("/api/analytics/by-icp", async (req: Request, res: Response) => {
+    try {
+      const icpProfiles = await storage.getIcpProfiles();
+      const leads = await storage.getAllLeads();
+
+      const icpPerformance = await Promise.all(
+        icpProfiles.map(async (icp) => {
+          const matchingLeads = leads.filter(lead => {
+            const criteria = icp.targetCriteria;
+            if (!criteria) return false;
+            
+            // Check population range
+            if (criteria.minPopulation && (!lead.population || lead.population < criteria.minPopulation)) return false;
+            if (criteria.maxPopulation && lead.population && lead.population > criteria.maxPopulation) return false;
+            
+            // Check states
+            if (criteria.states && criteria.states.length > 0 && !criteria.states.includes(lead.state)) return false;
+            
+            // Check departments
+            if (criteria.departments && criteria.departments.length > 0 && lead.department) {
+              const matchesDept = criteria.departments.some(d => 
+                lead.department?.toLowerCase().includes(d.toLowerCase())
+              );
+              if (!matchesDept) return false;
+            }
+            
+            return true;
+          });
+
+          const respondedLeads = matchingLeads.filter(l => 
+            l.lastCallOutcome === "interested" || 
+            l.lastCallOutcome === "callback_scheduled" || 
+            l.lastCallOutcome === "meeting_scheduled"
+          );
+
+          const meetingsBooked = matchingLeads.filter(l => 
+            l.lastCallOutcome === "meeting_scheduled"
+          ).length;
+
+          const avgScore = matchingLeads.length > 0
+            ? Math.round(matchingLeads.reduce((sum, l) => sum + (l.priorityScore || 0), 0) / matchingLeads.length)
+            : 0;
+
+          return {
+            icpId: icp.id,
+            icpName: icp.displayName,
+            isActive: icp.isActive,
+            leadCount: matchingLeads.length,
+            responseRate: matchingLeads.length > 0
+              ? Math.round((respondedLeads.length / matchingLeads.length) * 100)
+              : 0,
+            meetingsBooked,
+            avgScore,
+          };
+        })
+      );
+
+      res.json(icpPerformance);
+    } catch (error) {
+      console.error("Error fetching ICP analytics:", error);
+      res.status(500).json({ error: "Failed to fetch ICP analytics" });
+    }
+  });
+
+  // Geographic breakdown by state
+  app.get("/api/analytics/by-state", async (req: Request, res: Response) => {
+    try {
+      const leads = await storage.getAllLeads();
+
+      const stateMap = new Map<string, { 
+        state: string; 
+        leadCount: number; 
+        contacted: number;
+        responded: number;
+        meetings: number;
+      }>();
+
+      for (const lead of leads) {
+        const state = lead.state;
+        if (!stateMap.has(state)) {
+          stateMap.set(state, { state, leadCount: 0, contacted: 0, responded: 0, meetings: 0 });
+        }
+        const stateData = stateMap.get(state)!;
+        stateData.leadCount++;
+        
+        if (lead.status !== "not_contacted") {
+          stateData.contacted++;
+        }
+        
+        if (lead.lastCallOutcome === "interested" || 
+            lead.lastCallOutcome === "callback_scheduled" || 
+            lead.lastCallOutcome === "meeting_scheduled") {
+          stateData.responded++;
+        }
+        
+        if (lead.lastCallOutcome === "meeting_scheduled") {
+          stateData.meetings++;
+        }
+      }
+
+      const stateAnalytics = Array.from(stateMap.values())
+        .map(s => ({
+          ...s,
+          responseRate: s.contacted > 0 ? Math.round((s.responded / s.contacted) * 100) : 0,
+        }))
+        .sort((a, b) => b.leadCount - a.leadCount);
+
+      res.json(stateAnalytics);
+    } catch (error) {
+      console.error("Error fetching state analytics:", error);
+      res.status(500).json({ error: "Failed to fetch state analytics" });
+    }
+  });
+
+  // Activity over time
+  app.get("/api/analytics/over-time", async (req: Request, res: Response) => {
+    try {
+      const leads = await storage.getAllLeads();
+      const period = (req.query.period as string) || "week"; // day, week, month
+
+      // Get leads created over time (last 30 days)
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const dateMap = new Map<string, { 
+        date: string; 
+        leadsCreated: number; 
+        leadsContacted: number;
+        meetingsBooked: number;
+      }>();
+
+      // Initialize last 30 days
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateKey = date.toISOString().split('T')[0];
+        dateMap.set(dateKey, { date: dateKey, leadsCreated: 0, leadsContacted: 0, meetingsBooked: 0 });
+      }
+
+      // Count leads created per day
+      for (const lead of leads) {
+        if (lead.createdAt && lead.createdAt >= thirtyDaysAgo) {
+          const dateKey = new Date(lead.createdAt).toISOString().split('T')[0];
+          if (dateMap.has(dateKey)) {
+            dateMap.get(dateKey)!.leadsCreated++;
+          }
+        }
+        
+        // Count contacts per day
+        if (lead.lastContactedAt && lead.lastContactedAt >= thirtyDaysAgo) {
+          const dateKey = new Date(lead.lastContactedAt).toISOString().split('T')[0];
+          if (dateMap.has(dateKey)) {
+            dateMap.get(dateKey)!.leadsContacted++;
+          }
+        }
+      }
+
+      const timeSeriesData = Array.from(dateMap.values())
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      res.json(timeSeriesData);
+    } catch (error) {
+      console.error("Error fetching time series data:", error);
+      res.status(500).json({ error: "Failed to fetch time series data" });
+    }
+  });
+
   return httpServer;
+}
+
+// ============================================
+// EMAIL TEMPLATE RENDERING HELPER
+// ============================================
+
+function renderEmailTemplate(template: string, lead: GovernmentLead): string {
+  const primaryContact = lead.decisionMakers?.[0];
+  const variables: Record<string, string> = {
+    institutionName: lead.institutionName || "",
+    contactName: primaryContact?.name || "Decision Maker",
+    department: lead.department || "your department",
+    painPoints: lead.painPoints?.join(", ") || "operational challenges",
+    buyingSignals: lead.buyingSignals?.join(", ") || "",
+    recentNews: lead.recentNews?.map(n => n.title).join("; ") || "",
+    state: lead.state || "",
+    county: lead.county || "",
+    city: lead.city || "",
+    institutionType: lead.institutionType || "",
+    population: lead.population?.toLocaleString() || "N/A",
+    annualBudget: lead.annualBudget || "N/A",
+    techStack: lead.techStack?.join(", ") || "",
+    techMaturityScore: lead.techMaturityScore?.toString() || "N/A",
+    email: lead.email || "",
+    phoneNumber: lead.phoneNumber || "",
+    website: lead.website || "",
+    contactTitle: primaryContact?.title || "",
+    contactEmail: primaryContact?.email || "",
+    contactPhone: primaryContact?.phone || "",
+  };
+
+  let rendered = template;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "gi");
+    rendered = rendered.replace(regex, value);
+  }
+  return rendered;
+}
+
+function getAvailableTemplateVariables(): Array<{ variable: string; description: string }> {
+  return [
+    { variable: "{{institutionName}}", description: "Name of the government institution" },
+    { variable: "{{contactName}}", description: "Primary contact/decision maker name" },
+    { variable: "{{department}}", description: "Department within the institution" },
+    { variable: "{{painPoints}}", description: "Known pain points (comma-separated)" },
+    { variable: "{{buyingSignals}}", description: "Identified buying signals" },
+    { variable: "{{recentNews}}", description: "Recent news about the institution" },
+    { variable: "{{state}}", description: "State location" },
+    { variable: "{{county}}", description: "County location" },
+    { variable: "{{city}}", description: "City location" },
+    { variable: "{{institutionType}}", description: "Type of institution (county, city, etc.)" },
+    { variable: "{{population}}", description: "Population served" },
+    { variable: "{{annualBudget}}", description: "Annual budget" },
+    { variable: "{{techStack}}", description: "Current technology stack" },
+    { variable: "{{techMaturityScore}}", description: "Technology maturity score (1-10)" },
+    { variable: "{{email}}", description: "Institution email address" },
+    { variable: "{{phoneNumber}}", description: "Institution phone number" },
+    { variable: "{{website}}", description: "Institution website" },
+    { variable: "{{contactTitle}}", description: "Primary contact's job title" },
+    { variable: "{{contactEmail}}", description: "Primary contact's email" },
+    { variable: "{{contactPhone}}", description: "Primary contact's phone" },
+  ];
 }

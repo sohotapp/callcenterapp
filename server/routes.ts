@@ -215,9 +215,7 @@ export async function registerRoutes(
   // Recover any orphaned scrape jobs from previous server instance
   try {
     const recoveredCount = await storage.recoverOrphanedJobs();
-    if (recoveredCount > 0) {
-      console.log(`[startup] Recovered ${recoveredCount} orphaned scrape job(s) from previous server instance`);
-    }
+    console.log(`[startup] Orphaned job recovery: ${recoveredCount} job(s) recovered`);
   } catch (error) {
     console.error("[startup] Failed to recover orphaned jobs:", error);
   }

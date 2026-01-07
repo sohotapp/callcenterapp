@@ -15,6 +15,7 @@ import {
 } from "./county-data";
 import { enrichLead, enrichLeadsBatch } from "./enrichment";
 import { calculateLeadScore, scoreAllLeads } from "./scoring";
+import { scrapeRealCountyData } from "./real-data-scraper";
 
 // Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
 let anthropicClient: Anthropic | null = null;
@@ -906,6 +907,44 @@ Focus on making the content compelling for enterprise and government decision-ma
                       ? countyName 
                       : `${countyName} County`;
 
+                    // Fetch real contact data from government websites using Tavily + Claude
+                    let realContactData;
+                    try {
+                      console.log(`[Scraper] Fetching real data for ${countyName} County, ${county.state} - ${dept}`);
+                      realContactData = await scrapeRealCountyData(county, dept);
+                    } catch (scrapeError) {
+                      console.error(`[Scraper] Failed to fetch real data for ${countyName} County:`, scrapeError);
+                      realContactData = {
+                        phoneNumber: null,
+                        email: null,
+                        website: null,
+                        decisionMakerName: null,
+                        decisionMakerTitle: null,
+                        additionalContacts: [],
+                      };
+                    }
+
+                    // Build decision makers array from scraped data
+                    const decisionMakers = [];
+                    if (realContactData.decisionMakerName) {
+                      decisionMakers.push({
+                        name: realContactData.decisionMakerName,
+                        title: realContactData.decisionMakerTitle || dept,
+                        email: realContactData.email,
+                        phone: realContactData.phoneNumber,
+                        linkedIn: null,
+                      });
+                    }
+                    for (const contact of realContactData.additionalContacts || []) {
+                      decisionMakers.push({
+                        name: contact.name,
+                        title: contact.title,
+                        email: contact.email || null,
+                        phone: contact.phone || null,
+                        linkedIn: null,
+                      });
+                    }
+
                     await storage.createLead({
                       institutionName: fullCountyName,
                       institutionType: "county",
@@ -913,15 +952,16 @@ Focus on making the content compelling for enterprise and government decision-ma
                       state: county.state,
                       county: countyName,
                       city: county.countySeat,
-                      phoneNumber: generatePhoneNumber(county.areaCodes),
-                      email: generateEmail(dept, countyName),
-                      website: generateWebsite(countyName, county.stateAbbr),
+                      phoneNumber: realContactData.phoneNumber || null,
+                      email: realContactData.email || null,
+                      website: realContactData.website || null,
                       population: population || null,
                       annualBudget: enrichment.estimatedBudget,
                       techMaturityScore: enrichment.techMaturityScore,
                       priorityScore,
                       status: "not_contacted",
                       painPoints: enrichment.painPoints,
+                      decisionMakers: decisionMakers.length > 0 ? decisionMakers : null,
                     });
                     leadsFound++;
                   } catch (insertError) {

@@ -23,9 +23,6 @@ import pLimit from "p-limit";
 import pRetry from "p-retry";
 import { 
   getCountiesByState, 
-  generatePhoneNumber, 
-  generateWebsite, 
-  generateEmail,
   type CountyData 
 } from "./county-data";
 import { enrichLead, enrichLeadsBatch, enrichLeadWithRealData } from "./enrichment";

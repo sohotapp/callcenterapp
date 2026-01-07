@@ -434,7 +434,7 @@ export default function ScrapePage() {
                       </SelectTrigger>
                       <SelectContent>
                         {icpLoading ? (
-                          <SelectItem value="" disabled>Loading...</SelectItem>
+                          <SelectItem value="_loading" disabled>Loading...</SelectItem>
                         ) : icpProfiles && icpProfiles.length > 0 ? (
                           icpProfiles.map((icp) => (
                             <SelectItem 
@@ -446,7 +446,7 @@ export default function ScrapePage() {
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="" disabled>No ICP profiles available</SelectItem>
+                          <SelectItem value="_none" disabled>No ICP profiles available</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -455,15 +455,15 @@ export default function ScrapePage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">State Filter (Optional)</label>
                     <Select 
-                      value={stateFilter} 
-                      onValueChange={setStateFilter}
+                      value={stateFilter || "_all"} 
+                      onValueChange={(val) => setStateFilter(val === "_all" ? "" : val)}
                       data-testid="select-state-filter"
                     >
                       <SelectTrigger data-testid="select-state-filter-trigger">
                         <SelectValue placeholder="All states" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All states</SelectItem>
+                        <SelectItem value="_all">All states</SelectItem>
                         {US_STATES.map((state) => (
                           <SelectItem key={state} value={state}>
                             {state}

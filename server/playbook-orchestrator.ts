@@ -323,6 +323,24 @@ export async function scrapeForIcp(
     leads: [],
   };
 
+  // CRITICAL: Validate API keys are configured - no fallbacks allowed
+  const tavilyApiKey = process.env.TAVILY_API_KEY;
+  const anthropicApiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  
+  if (!tavilyApiKey) {
+    result.success = false;
+    result.errors.push("TAVILY_API_KEY is not configured. Real data scraping requires Tavily API access.");
+    console.error("[PlaybookOrchestrator] FATAL: Cannot scrape without Tavily API key");
+    return result;
+  }
+  
+  if (!anthropicApiKey) {
+    result.success = false;
+    result.errors.push("AI_INTEGRATIONS_ANTHROPIC_API_KEY is not configured. Real data extraction requires Claude AI access.");
+    console.error("[PlaybookOrchestrator] FATAL: Cannot extract data without Anthropic API key");
+    return result;
+  }
+
   const icp = await storage.getIcpProfile(icpId);
   if (!icp) {
     result.success = false;

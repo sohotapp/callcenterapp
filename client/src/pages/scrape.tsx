@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   RefreshCw,
@@ -48,10 +48,51 @@ const statusColors: Record<string, string> = {
 export default function ScrapePage() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const { toast } = useToast();
+  const previousJobsRef = useRef<ScrapeJob[]>([]);
 
   const { data: jobs, isLoading: jobsLoading } = useQuery<ScrapeJob[]>({
     queryKey: ["/api/scrape/jobs"],
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasActiveJob = data?.some((j) => j.status === "running" || j.status === "pending");
+      return hasActiveJob ? 2000 : false;
+    },
   });
+
+  useEffect(() => {
+    if (!jobs) return;
+    
+    const previousJobs = previousJobsRef.current;
+    const wasRunning = previousJobs.some((j) => j.status === "running");
+    const nowCompleted = jobs.some((j) => 
+      j.status === "completed" && 
+      previousJobs.find((pj) => pj.id === j.id)?.status === "running"
+    );
+
+    if (wasRunning && nowCompleted) {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads/top-scored"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/funnel"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/response-rates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/by-icp"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/by-state"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics/over-time"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scripts"] });
+      
+      const completedJob = jobs.find((j) => 
+        j.status === "completed" && 
+        previousJobs.find((pj) => pj.id === j.id)?.status === "running"
+      );
+      
+      toast({
+        title: "Scraping Complete",
+        description: `Found ${completedJob?.leadsFound ?? 0} leads from ${completedJob?.totalStates ?? 0} state(s).`,
+      });
+    }
+
+    previousJobsRef.current = jobs;
+  }, [jobs, toast]);
 
   const startScrapeMutation = useMutation({
     mutationFn: async (states: string[]) => {

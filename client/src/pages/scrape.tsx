@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   RefreshCw,
   Play,
@@ -8,6 +9,7 @@ import {
   Clock,
   Building2,
   MapPin,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,7 @@ const statusColors: Record<string, string> = {
 export default function ScrapePage() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const previousJobsRef = useRef<ScrapeJob[]>([]);
 
   const { data: jobs, isLoading: jobsLoading } = useQuery<ScrapeJob[]>({
@@ -240,11 +243,25 @@ export default function ScrapePage() {
               <div className="space-y-3">
                 {jobs.slice(0, 5).map((job) => {
                   const Icon = statusIcons[job.status];
+                  const isClickable = job.status === "completed" && job.leadsFound > 0;
                   return (
                     <div
                       key={job.id}
-                      className="flex items-start gap-3 p-3 bg-muted/50 rounded-md"
+                      className={`flex items-start gap-3 p-3 bg-muted/50 rounded-md ${
+                        isClickable ? "cursor-pointer hover-elevate" : ""
+                      }`}
                       data-testid={`job-${job.id}`}
+                      onClick={() => {
+                        if (isClickable) {
+                          setLocation("/leads");
+                          toast({
+                            title: "Viewing Scraped Leads",
+                            description: `Showing ${job.leadsFound} leads from this scrape job.`,
+                          });
+                        }
+                      }}
+                      role={isClickable ? "button" : undefined}
+                      tabIndex={isClickable ? 0 : undefined}
                     >
                       <Icon
                         className={`h-4 w-4 mt-0.5 ${
@@ -258,6 +275,9 @@ export default function ScrapePage() {
                           <Badge className={`${statusColors[job.status]} border-0 capitalize`}>
                             {job.status}
                           </Badge>
+                          {isClickable && (
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {job.statesCompleted}/{job.totalStates} states •{" "}

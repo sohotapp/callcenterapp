@@ -84,26 +84,40 @@ function buildEnrichmentQueries(lead: GovernmentLead): string[] {
   ];
 }
 
+// Truncate text to a maximum character length
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + "... [truncated]";
+}
+
 async function analyzeWithClaude(
   lead: GovernmentLead,
   searchResults: Map<string, TavilyResult[]>
 ): Promise<EnrichmentResult> {
   const allResults: string[] = [];
+  const MAX_CONTENT_PER_RESULT = 2000; // Limit each result's content
+  const MAX_RESULTS_PER_QUERY = 3; // Only use top 3 results per query
+  const MAX_TOTAL_CONTENT = 30000; // Total content limit to stay under Claude's limit
   
   for (const [query, results] of Array.from(searchResults.entries())) {
     if (results.length > 0) {
       allResults.push(`\n=== Query: ${query} ===`);
-      for (const result of results) {
+      // Only take top results per query
+      const limitedResults = results.slice(0, MAX_RESULTS_PER_QUERY);
+      for (const result of limitedResults) {
+        const content = result.content || ""; // Use summary content instead of raw_content to save tokens
         allResults.push(`
 Title: ${result.title}
 URL: ${result.url}
-Content: ${result.raw_content || result.content}
+Content: ${truncateText(content, MAX_CONTENT_PER_RESULT)}
 ---`);
       }
     }
   }
 
-  const combinedResults = allResults.join("\n");
+  // Truncate entire combined results if still too long
+  let combinedResults = allResults.join("\n");
+  combinedResults = truncateText(combinedResults, MAX_TOTAL_CONTENT);
 
   const prompt = `Analyze the following search results about a government institution and extract structured intelligence data.
 

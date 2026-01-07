@@ -958,6 +958,11 @@ Focus on making the content compelling for enterprise and government decision-ma
                       decisionMakers: decisionMakers.length > 0 ? decisionMakers : null,
                     });
                     leadsFound++;
+                    
+                    // Update job progress after each lead is created
+                    await storage.updateScrapeJob(job.id, {
+                      leadsFound,
+                    });
                   } catch (insertError) {
                     console.error(`Error inserting lead for ${countyName}:`, insertError);
                   }
@@ -1577,8 +1582,8 @@ Focus on making the content compelling for enterprise and government decision-ma
         return res.status(404).json({ error: "Lead not found" });
       }
 
-      const icpProfiles = await storage.getAllIcpProfiles();
-      const activeProfiles = icpProfiles.filter(p => p.isActive);
+      const icpProfiles = await storage.getIcpProfiles();
+      const activeProfiles = icpProfiles.filter((p: any) => p.isActive);
       
       if (activeProfiles.length === 0) {
         return res.json({

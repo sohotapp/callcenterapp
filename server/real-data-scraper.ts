@@ -200,12 +200,17 @@ Respond ONLY with valid JSON in this exact format:
           (c: { name: string }) => c.name === parsed.decisionMakerName
         );
         if (!existingDecisionMaker) {
-          additionalContacts.unshift({
+          const newContact: { name: string; title: string; phone?: string; email?: string } = {
             name: parsed.decisionMakerName,
             title: parsed.decisionMakerTitle || "Department Head",
-            phone: parsed.decisionMakerDirectPhone || null,
-            email: parsed.decisionMakerEmail || null,
-          });
+          };
+          if (parsed.decisionMakerDirectPhone) {
+            newContact.phone = parsed.decisionMakerDirectPhone;
+          }
+          if (parsed.decisionMakerEmail) {
+            newContact.email = parsed.decisionMakerEmail;
+          }
+          additionalContacts.unshift(newContact);
         } else if (parsed.decisionMakerDirectPhone && !existingDecisionMaker.phone) {
           existingDecisionMaker.phone = parsed.decisionMakerDirectPhone;
         }

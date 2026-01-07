@@ -97,6 +97,7 @@ export interface IStorage {
   getIcpProfile(id: number): Promise<IcpProfile | undefined>;
   updateIcpProfile(id: number, profile: Partial<InsertIcpProfile>): Promise<IcpProfile | undefined>;
   seedDefaultIcps(): Promise<void>;
+  seedDefaultPlaybooks(): Promise<void>;
   countMatchingLeads(icpId: number): Promise<number>;
 
   // Email Sequences
@@ -456,6 +457,94 @@ export class DatabaseStorage implements IStorage {
 
     for (const icp of defaultIcps) {
       await db.insert(icpProfiles).values(icp);
+    }
+  }
+
+  async seedDefaultPlaybooks(): Promise<void> {
+    const profiles = await this.getIcpProfiles();
+    if (profiles.length === 0) return;
+
+    const playbookConfigs: Record<string, {
+      targetEntityTypes: string[];
+      queryTemplates: string[];
+      dataSources: string[];
+      valueProposition: string;
+      enrichmentPromptHints: string;
+      complianceFlags?: string[];
+    }> = {
+      government: {
+        targetEntityTypes: ["county", "city", "district"],
+        queryTemplates: [
+          "{entity} {state} government official website",
+          "{entity} {state} {department} contact information phone email"
+        ],
+        dataSources: ["tavily_web", "us_census"],
+        valueProposition: "Mission-critical AI operations for emergency services, infrastructure management, and citizen services automation",
+        enrichmentPromptHints: "Look for IT directors, CIOs, County Managers. Focus on budget cycles, modernization initiatives, ARPA funding.",
+      },
+      healthcare: {
+        targetEntityTypes: ["hospital", "health_system", "clinic", "medical_center"],
+        queryTemplates: [
+          "{entity} {state} hospital contact information",
+          "{entity} {state} healthcare IT leadership CIO",
+          "{entity} {state} hospital administration"
+        ],
+        dataSources: ["tavily_web", "cms_hospitals"],
+        valueProposition: "Clinical workflow automation, predictive staffing, HIPAA-compliant AI systems, and healthcare analytics",
+        enrichmentPromptHints: "Look for CIOs, CMIOs, VP of IT, Chief Digital Officers. Focus on EHR integration, telehealth, AI adoption.",
+        complianceFlags: ["HIPAA"],
+      },
+      legal: {
+        targetEntityTypes: ["law_firm", "corporate_legal"],
+        queryTemplates: [
+          "{entity} law firm contact information",
+          "{entity} {state} law firm leadership partners",
+          "{entity} legal technology"
+        ],
+        dataSources: ["tavily_web", "state_bar"],
+        valueProposition: "E-discovery automation, knowledge management AI, contract analysis, and legal research acceleration",
+        enrichmentPromptHints: "Look for Managing Partners, CIO, Director of IT, Innovation Partners. Focus on AmLaw rankings, practice areas, tech initiatives.",
+      },
+      financial_services: {
+        targetEntityTypes: ["bank", "credit_union", "insurance", "fintech"],
+        queryTemplates: [
+          "{entity} {state} bank contact information",
+          "{entity} {state} financial institution leadership",
+          "{entity} CTO CIO technology"
+        ],
+        dataSources: ["tavily_web", "fdic_banks"],
+        valueProposition: "Fraud detection AI, risk modeling, regulatory compliance automation, and customer experience intelligence",
+        enrichmentPromptHints: "Look for CTOs, CIOs, Chief Digital Officers, VP of Technology. Focus on digital transformation, fraud prevention, compliance.",
+        complianceFlags: ["SOC2", "PCI"],
+      },
+      pe: {
+        targetEntityTypes: ["pe_firm", "portfolio_company", "investment_firm"],
+        queryTemplates: [
+          "{entity} private equity portfolio companies",
+          "{entity} investment firm contact",
+          "{entity} operating partners"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Portfolio intelligence, operational efficiency AI, due diligence automation, and value creation analytics",
+        enrichmentPromptHints: "Look for Operating Partners, CTOs of portfolio companies, VP of Operations. Focus on recent acquisitions, operational improvements.",
+      },
+    };
+
+    for (const profile of profiles) {
+      const config = playbookConfigs[profile.verticalName];
+      if (config && !profile.playbookConfig) {
+        await this.updateIcpProfile(profile.id, {
+          playbookConfig: {
+            targetEntityTypes: config.targetEntityTypes,
+            queryTemplates: config.queryTemplates,
+            dataSources: config.dataSources,
+            valueProposition: config.valueProposition,
+            enrichmentPromptHints: config.enrichmentPromptHints,
+            complianceFlags: config.complianceFlags || [],
+          },
+        });
+        console.log(`[Storage] Seeded playbook config for ICP: ${profile.displayName}`);
+      }
     }
   }
 

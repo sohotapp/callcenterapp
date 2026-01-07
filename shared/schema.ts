@@ -75,11 +75,21 @@ export const scoringBreakdownSchema = z.object({
 
 export type ScoringBreakdown = z.infer<typeof scoringBreakdownSchema>;
 
-// Government Lead - main entity for county/local government contacts
+// Lead source tracking type for JSONB
+export interface LeadSourceData {
+  sourceUrl?: string | null;
+  sourceType?: string | null; // tavily_web, cms_api, fdic_api, manual
+  extractionMethod?: string | null; // ai_extraction, api_direct, manual_entry
+  verifiedAt?: string | null;
+  confidenceScore?: number | null; // 0-100 confidence in data accuracy
+  rawData?: Record<string, unknown>; // Original scraped data for audit
+}
+
+// Government Lead - main entity for county/local government contacts (also used for other verticals)
 export const governmentLeads = pgTable("government_leads", {
   id: serial("id").primaryKey(),
   institutionName: text("institution_name").notNull(),
-  institutionType: text("institution_type").notNull(), // county, city, district, department
+  institutionType: text("institution_type").notNull(), // county, city, hospital, law_firm, bank, pe_firm
   department: text("department"), // e.g., IT, Finance, Public Works
   state: text("state").notNull(),
   county: text("county"),
@@ -112,6 +122,9 @@ export const governmentLeads = pgTable("government_leads", {
   enrichmentData: jsonb("enrichment_data").$type<Record<string, unknown>>(),
   enrichedAt: timestamp("enriched_at"),
   enrichmentScore: integer("enrichment_score"), // 1-100 quality score
+  // ICP linkage and source tracking
+  icpId: integer("icp_id"), // Links to the ICP profile this lead belongs to
+  sourceData: jsonb("source_data").$type<LeadSourceData>(), // Source tracking for data provenance
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -223,6 +236,9 @@ export const scrapeJobs = pgTable("scrape_jobs", {
   errorMessage: text("error_message"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  // ICP linkage for multi-vertical scraping
+  icpId: integer("icp_id"), // Links to the ICP profile this job scrapes for
+  icpName: text("icp_name"), // Denormalized for display
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -249,6 +265,44 @@ export const targetCriteriaSchema = z.object({
 
 export type TargetCriteria = z.infer<typeof targetCriteriaSchema>;
 
+// Playbook configuration schema - defines how to scrape and enrich for each ICP
+export const playbookConfigSchema = z.object({
+  // Target entity types to scrape (e.g., "county", "hospital", "law_firm", "bank")
+  targetEntityTypes: z.array(z.string()).default([]),
+  // Query templates for Tavily searches - use {entity}, {state}, {department} placeholders
+  queryTemplates: z.array(z.string()).default([]),
+  // Data sources to use (tavily_web, cms_hospitals, fdic_banks, state_bar, etc.)
+  dataSources: z.array(z.string()).default(["tavily_web"]),
+  // Enrichment prompt hints - guidance for Claude on what to look for
+  enrichmentPromptHints: z.string().nullable().optional(),
+  // Scoring weight adjustments for this vertical
+  scoringWeights: z.object({
+    painPointWeight: z.number().default(1.0),
+    budgetWeight: z.number().default(1.0),
+    techMaturityWeight: z.number().default(1.0),
+    decisionMakerWeight: z.number().default(1.0),
+    urgencyWeight: z.number().default(1.0),
+  }).optional(),
+  // RLTX.ai value proposition for this vertical
+  valueProposition: z.string().nullable().optional(),
+  // Compliance flags (e.g., HIPAA for healthcare)
+  complianceFlags: z.array(z.string()).default([]),
+});
+
+export type PlaybookConfig = z.infer<typeof playbookConfigSchema>;
+
+// Lead source tracking schema
+export const leadSourceSchema = z.object({
+  sourceUrl: z.string().nullable().optional(),
+  sourceType: z.string().nullable().optional(), // tavily_web, cms_api, fdic_api, manual
+  extractionMethod: z.string().nullable().optional(), // ai_extraction, api_direct, manual_entry
+  verifiedAt: z.string().nullable().optional(),
+  confidenceScore: z.number().nullable().optional(), // 0-100 confidence in data accuracy
+  rawData: z.record(z.unknown()).optional(), // Original scraped data for audit
+});
+
+export type LeadSource = z.infer<typeof leadSourceSchema>;
+
 // ICP Profiles - Ideal Customer Profile for different verticals
 export const icpProfiles = pgTable("icp_profiles", {
   id: serial("id").primaryKey(),
@@ -259,6 +313,8 @@ export const icpProfiles = pgTable("icp_profiles", {
   autoScrapeEnabled: boolean("auto_scrape_enabled").notNull().default(false),
   targetCriteria: jsonb("target_criteria").$type<TargetCriteria>(),
   searchQueries: text("search_queries").array(),
+  // New playbook configuration fields
+  playbookConfig: jsonb("playbook_config").$type<PlaybookConfig>(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });

@@ -1054,6 +1054,7 @@ Focus on making the content compelling for enterprise and government decision-ma
   app.get("/api/icp", async (req: Request, res: Response) => {
     try {
       await storage.seedDefaultIcps();
+      await storage.seedDefaultPlaybooks();
       const profiles = await storage.getIcpProfiles();
       res.json(profiles);
     } catch (error) {

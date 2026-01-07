@@ -17,6 +17,14 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  Brain,
+  Newspaper,
+  Cpu,
+  TrendingUp,
+  RefreshCw,
+  User,
+  Linkedin,
+  Target,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,8 +33,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { GovernmentLead, CallScript } from "@shared/schema";
+import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   not_contacted: "bg-muted text-muted-foreground",
@@ -152,6 +161,26 @@ export default function LeadDetail() {
     },
   });
 
+  const enrichMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/leads/${leadId}/enrich`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
+      toast({
+        title: "Enrichment Complete",
+        description: "Lead has been enriched with intelligence data.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Enrichment Failed",
+        description: "Failed to enrich lead. Please check if TAVILY_API_KEY is configured.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -245,6 +274,10 @@ export default function LeadDetail() {
               <TabsTrigger value="script" data-testid="tab-script">
                 <FileText className="h-4 w-4 mr-2" />
                 Call Script
+              </TabsTrigger>
+              <TabsTrigger value="intelligence" data-testid="tab-intelligence">
+                <Brain className="h-4 w-4 mr-2" />
+                Intelligence
               </TabsTrigger>
               <TabsTrigger value="pain-points" data-testid="tab-pain-points">
                 <AlertCircle className="h-4 w-4 mr-2" />
@@ -353,6 +386,189 @@ export default function LeadDetail() {
                         {generateScriptMutation.isPending
                           ? "Generating..."
                           : "Generate Script"}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="intelligence" className="mt-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    Lead Intelligence
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {lead.enrichmentScore && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Score:</span>
+                        <Badge variant="outline" className="font-mono">
+                          {lead.enrichmentScore}/100
+                        </Badge>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => enrichMutation.mutate()}
+                      disabled={enrichMutation.isPending}
+                      data-testid="button-enrich-lead"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${enrichMutation.isPending ? "animate-spin" : ""}`} />
+                      {enrichMutation.isPending ? "Enriching..." : "Refresh"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {lead.enrichedAt ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Last enriched: {new Date(lead.enrichedAt).toLocaleString()}
+                      </div>
+                      
+                      {lead.enrichmentScore && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Enrichment Quality</span>
+                            <span className="font-medium">{lead.enrichmentScore}%</span>
+                          </div>
+                          <Progress value={lead.enrichmentScore} className="h-2" />
+                        </div>
+                      )}
+                      
+                      {lead.decisionMakers && lead.decisionMakers.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            Decision Makers
+                          </h4>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {(lead.decisionMakers as DecisionMaker[]).map((dm, idx) => (
+                              <div key={idx} className="bg-muted/50 rounded-md p-3 space-y-1">
+                                <div className="font-medium text-sm">{dm.name}</div>
+                                <div className="text-xs text-muted-foreground">{dm.title}</div>
+                                {dm.email && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <Mail className="h-3 w-3" />
+                                    <a href={`mailto:${dm.email}`} className="hover:underline">{dm.email}</a>
+                                  </div>
+                                )}
+                                {dm.phone && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <Phone className="h-3 w-3" />
+                                    <span className="font-mono">{dm.phone}</span>
+                                  </div>
+                                )}
+                                {dm.linkedIn && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <Linkedin className="h-3 w-3" />
+                                    <a href={dm.linkedIn} target="_blank" rel="noopener noreferrer" className="hover:underline truncate">
+                                      LinkedIn Profile
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {lead.techStack && lead.techStack.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Cpu className="h-4 w-4" />
+                            Current Tech Stack
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {lead.techStack.map((tech, idx) => (
+                              <Badge key={idx} variant="secondary">{tech}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {lead.buyingSignals && lead.buyingSignals.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Buying Signals
+                          </h4>
+                          <ul className="space-y-2">
+                            {lead.buyingSignals.map((signal, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm bg-green-50 dark:bg-green-900/20 rounded-md p-2">
+                                <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
+                                {signal}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {lead.recentNews && lead.recentNews.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Newspaper className="h-4 w-4" />
+                            Recent News & Initiatives
+                          </h4>
+                          <div className="space-y-3">
+                            {(lead.recentNews as RecentNews[]).map((news, idx) => (
+                              <div key={idx} className="bg-muted/50 rounded-md p-3 space-y-1">
+                                <a
+                                  href={news.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-sm hover:underline flex items-center gap-1"
+                                >
+                                  {news.title}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                                {news.date && (
+                                  <div className="text-xs text-muted-foreground">{news.date}</div>
+                                )}
+                                <p className="text-xs text-muted-foreground">{news.summary}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {lead.competitorAnalysis && lead.competitorAnalysis.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Target className="h-4 w-4" />
+                            Competitor Analysis
+                          </h4>
+                          <div className="space-y-2">
+                            {(lead.competitorAnalysis as CompetitorAnalysis[]).map((comp, idx) => (
+                              <div key={idx} className="flex items-center justify-between gap-2 bg-muted/50 rounded-md p-3">
+                                <div>
+                                  <div className="font-medium text-sm">{comp.competitor}</div>
+                                  <div className="text-xs text-muted-foreground">{comp.product}</div>
+                                </div>
+                                <Badge variant="outline" className="shrink-0">{comp.relationship}</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Brain className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                      <h3 className="text-lg font-medium">No Intelligence Data</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        Run lead enrichment to gather decision makers, tech stack, buying signals, and more from public sources.
+                      </p>
+                      <Button
+                        className="mt-4"
+                        onClick={() => enrichMutation.mutate()}
+                        disabled={enrichMutation.isPending}
+                        data-testid="button-enrich-lead-empty"
+                      >
+                        <Brain className="h-4 w-4 mr-2" />
+                        {enrichMutation.isPending ? "Enriching..." : "Enrich Lead"}
                       </Button>
                     </div>
                   )}

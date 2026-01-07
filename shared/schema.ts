@@ -21,6 +21,34 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+// Enrichment data types for JSONB storage
+export const decisionMakerSchema = z.object({
+  name: z.string(),
+  title: z.string(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  linkedIn: z.string().nullable().optional(),
+});
+
+export type DecisionMaker = z.infer<typeof decisionMakerSchema>;
+
+export const recentNewsSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+  date: z.string().nullable().optional(),
+  summary: z.string(),
+});
+
+export type RecentNews = z.infer<typeof recentNewsSchema>;
+
+export const competitorAnalysisSchema = z.object({
+  competitor: z.string(),
+  product: z.string(),
+  relationship: z.string(),
+});
+
+export type CompetitorAnalysis = z.infer<typeof competitorAnalysisSchema>;
+
 // Government Lead - main entity for county/local government contacts
 export const governmentLeads = pgTable("government_leads", {
   id: serial("id").primaryKey(),
@@ -41,6 +69,15 @@ export const governmentLeads = pgTable("government_leads", {
   painPoints: text("pain_points").array(),
   notes: text("notes"),
   lastContactedAt: timestamp("last_contacted_at"),
+  // Lead enrichment fields
+  decisionMakers: jsonb("decision_makers").$type<DecisionMaker[]>(),
+  techStack: text("tech_stack").array(),
+  recentNews: jsonb("recent_news").$type<RecentNews[]>(),
+  competitorAnalysis: jsonb("competitor_analysis").$type<CompetitorAnalysis[]>(),
+  buyingSignals: text("buying_signals").array(),
+  enrichmentData: jsonb("enrichment_data").$type<Record<string, unknown>>(),
+  enrichedAt: timestamp("enriched_at"),
+  enrichmentScore: integer("enrichment_score"), // 1-100 quality score
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });

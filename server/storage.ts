@@ -22,8 +22,21 @@ import {
   type InsertScrapeJob,
   type IcpProfile,
   type InsertIcpProfile,
+  type DecisionMaker,
+  type RecentNews,
+  type CompetitorAnalysis,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+
+export interface LeadEnrichmentData {
+  decisionMakers?: DecisionMaker[];
+  techStack?: string[];
+  recentNews?: RecentNews[];
+  competitorAnalysis?: CompetitorAnalysis[];
+  buyingSignals?: string[];
+  enrichmentData?: Record<string, unknown>;
+  enrichmentScore?: number;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -34,6 +47,7 @@ export interface IStorage {
   getLead(id: number): Promise<GovernmentLead | undefined>;
   createLead(lead: InsertGovernmentLead): Promise<GovernmentLead>;
   updateLead(id: number, lead: Partial<InsertGovernmentLead>): Promise<GovernmentLead | undefined>;
+  updateLeadEnrichment(id: number, enrichment: LeadEnrichmentData): Promise<GovernmentLead | undefined>;
   deleteLead(id: number): Promise<boolean>;
 
   getScriptByLeadId(leadId: number): Promise<CallScript | undefined>;
@@ -100,6 +114,25 @@ export class DatabaseStorage implements IStorage {
   async deleteLead(id: number): Promise<boolean> {
     const result = await db.delete(governmentLeads).where(eq(governmentLeads.id, id));
     return true;
+  }
+
+  async updateLeadEnrichment(id: number, enrichment: LeadEnrichmentData): Promise<GovernmentLead | undefined> {
+    const [lead] = await db
+      .update(governmentLeads)
+      .set({
+        decisionMakers: enrichment.decisionMakers,
+        techStack: enrichment.techStack,
+        recentNews: enrichment.recentNews,
+        competitorAnalysis: enrichment.competitorAnalysis,
+        buyingSignals: enrichment.buyingSignals,
+        enrichmentData: enrichment.enrichmentData,
+        enrichmentScore: enrichment.enrichmentScore,
+        enrichedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(governmentLeads.id, id))
+      .returning();
+    return lead;
   }
 
   async getScriptByLeadId(leadId: number): Promise<CallScript | undefined> {

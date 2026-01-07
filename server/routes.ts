@@ -13,6 +13,7 @@ import {
   generateEmail,
   type CountyData 
 } from "./county-data";
+import { enrichLead, enrichLeadsBatch } from "./enrichment";
 
 const anthropic = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -940,6 +941,132 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error counting matching leads:", error);
       res.status(500).json({ error: "Failed to count matching leads" });
+    }
+  });
+
+  app.post("/api/leads/:id/enrich", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const tavilyApiKey = process.env.TAVILY_API_KEY;
+      if (!tavilyApiKey) {
+        return res.status(500).json({ error: "TAVILY_API_KEY not configured" });
+      }
+
+      console.log(`Starting enrichment for lead ${id}: ${lead.institutionName}`);
+      
+      const enrichmentResult = await enrichLead(lead);
+      
+      const updatedLead = await storage.updateLeadEnrichment(id, {
+        decisionMakers: enrichmentResult.decisionMakers,
+        techStack: enrichmentResult.techStack,
+        recentNews: enrichmentResult.recentNews,
+        competitorAnalysis: enrichmentResult.competitorAnalysis,
+        buyingSignals: enrichmentResult.buyingSignals,
+        enrichmentData: enrichmentResult.enrichmentData,
+        enrichmentScore: enrichmentResult.enrichmentScore,
+      });
+
+      res.json(updatedLead);
+    } catch (error) {
+      console.error("Error enriching lead:", error);
+      res.status(500).json({ error: "Failed to enrich lead" });
+    }
+  });
+
+  const batchEnrichSchema = z.object({
+    leadIds: z.array(z.number()).min(1).max(10),
+  });
+
+  app.post("/api/leads/enrich-batch", async (req: Request, res: Response) => {
+    try {
+      const parseResult = batchEnrichSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+
+      const tavilyApiKey = process.env.TAVILY_API_KEY;
+      if (!tavilyApiKey) {
+        return res.status(500).json({ error: "TAVILY_API_KEY not configured" });
+      }
+
+      const { leadIds } = parseResult.data;
+      
+      const leads: any[] = [];
+      for (const id of leadIds) {
+        const lead = await storage.getLead(id);
+        if (lead) {
+          leads.push(lead);
+        }
+      }
+
+      if (leads.length === 0) {
+        return res.status(404).json({ error: "No valid leads found" });
+      }
+
+      console.log(`Starting batch enrichment for ${leads.length} leads`);
+
+      const results = await enrichLeadsBatch(leads);
+      
+      const enrichedLeads: any[] = [];
+      for (const [leadId, enrichmentResult] of results) {
+        const updatedLead = await storage.updateLeadEnrichment(leadId, {
+          decisionMakers: enrichmentResult.decisionMakers,
+          techStack: enrichmentResult.techStack,
+          recentNews: enrichmentResult.recentNews,
+          competitorAnalysis: enrichmentResult.competitorAnalysis,
+          buyingSignals: enrichmentResult.buyingSignals,
+          enrichmentData: enrichmentResult.enrichmentData,
+          enrichmentScore: enrichmentResult.enrichmentScore,
+        });
+        if (updatedLead) {
+          enrichedLeads.push(updatedLead);
+        }
+      }
+
+      res.json({
+        message: `Successfully enriched ${enrichedLeads.length} leads`,
+        leads: enrichedLeads,
+      });
+    } catch (error) {
+      console.error("Error in batch enrichment:", error);
+      res.status(500).json({ error: "Failed to enrich leads" });
+    }
+  });
+
+  app.get("/api/leads/:id/enrichment", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      res.json({
+        decisionMakers: lead.decisionMakers || [],
+        techStack: lead.techStack || [],
+        recentNews: lead.recentNews || [],
+        competitorAnalysis: lead.competitorAnalysis || [],
+        buyingSignals: lead.buyingSignals || [],
+        enrichmentData: lead.enrichmentData || {},
+        enrichedAt: lead.enrichedAt,
+        enrichmentScore: lead.enrichmentScore,
+      });
+    } catch (error) {
+      console.error("Error fetching lead enrichment:", error);
+      res.status(500).json({ error: "Failed to fetch lead enrichment" });
     }
   });
 

@@ -92,6 +92,7 @@ export interface IStorage {
   getScrapeJob(id: number): Promise<ScrapeJob | undefined>;
   createScrapeJob(job: InsertScrapeJob): Promise<ScrapeJob>;
   updateScrapeJob(id: number, job: Partial<InsertScrapeJob>): Promise<ScrapeJob | undefined>;
+  recoverOrphanedJobs(): Promise<number>;
 
   getIcpProfiles(): Promise<IcpProfile[]>;
   getIcpProfile(id: number): Promise<IcpProfile | undefined>;
@@ -308,6 +309,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(scrapeJobs.id, id))
       .returning();
     return job;
+  }
+
+  async recoverOrphanedJobs(): Promise<number> {
+    const orphanedJobs = await db
+      .update(scrapeJobs)
+      .set({ 
+        status: "completed", 
+        completedAt: new Date(),
+        errorMessage: "Job was interrupted by server restart"
+      })
+      .where(eq(scrapeJobs.status, "running"))
+      .returning();
+    return orphanedJobs.length;
   }
 
   async getIcpProfiles(): Promise<IcpProfile[]> {

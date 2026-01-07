@@ -212,6 +212,16 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Recover any orphaned scrape jobs from previous server instance
+  try {
+    const recoveredCount = await storage.recoverOrphanedJobs();
+    if (recoveredCount > 0) {
+      console.log(`[startup] Recovered ${recoveredCount} orphaned scrape job(s) from previous server instance`);
+    }
+  } catch (error) {
+    console.error("[startup] Failed to recover orphaned jobs:", error);
+  }
+
   // Health check endpoint for deployment - must respond quickly
   app.get("/healthz", (req: Request, res: Response) => {
     res.status(200).json({ status: "ok" });

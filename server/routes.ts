@@ -14,6 +14,7 @@ import {
   type CountyData 
 } from "./county-data";
 import { enrichLead, enrichLeadsBatch } from "./enrichment";
+import { calculateLeadScore, scoreAllLeads } from "./scoring";
 
 const anthropic = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
@@ -209,6 +210,17 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching leads:", error);
       res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+
+  app.get("/api/leads/top-scored", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 5;
+      const leads = await storage.getTopScoredLeads(Math.min(limit, 50));
+      res.json(leads);
+    } catch (error) {
+      console.error("Error fetching top scored leads:", error);
+      res.status(500).json({ error: "Failed to fetch top scored leads" });
     }
   });
 
@@ -1161,6 +1173,58 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error fetching lead enrichment:", error);
       res.status(500).json({ error: "Failed to fetch lead enrichment" });
+    }
+  });
+
+  app.post("/api/leads/:id/score", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const companyProfile = await storage.getCompanyProfile();
+      const scores = calculateLeadScore(lead, companyProfile ?? null);
+      
+      const updatedLead = await storage.updateLeadScoring(id, scores);
+
+      res.json({
+        lead: updatedLead,
+        scores,
+      });
+    } catch (error) {
+      console.error("Error scoring lead:", error);
+      res.status(500).json({ error: "Failed to score lead" });
+    }
+  });
+
+  app.post("/api/leads/score-all", async (req: Request, res: Response) => {
+    try {
+      const leads = await storage.getAllLeads();
+      const companyProfile = await storage.getCompanyProfile();
+      
+      const scoredLeads = scoreAllLeads(leads, companyProfile ?? null);
+      
+      const updatedLeads: any[] = [];
+      for (const { leadId, scores } of scoredLeads) {
+        const updatedLead = await storage.updateLeadScoring(leadId, scores);
+        if (updatedLead) {
+          updatedLeads.push(updatedLead);
+        }
+      }
+
+      res.json({
+        message: `Successfully scored ${updatedLeads.length} leads`,
+        count: updatedLeads.length,
+      });
+    } catch (error) {
+      console.error("Error scoring all leads:", error);
+      res.status(500).json({ error: "Failed to score leads" });
     }
   });
 

@@ -26,6 +26,7 @@ import {
   type RecentNews,
   type CompetitorAnalysis,
   type ScriptStyle,
+  type ScoringBreakdown,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -39,6 +40,15 @@ export interface LeadEnrichmentData {
   enrichmentScore?: number;
 }
 
+export interface LeadScoringData {
+  likelihoodScore: number;
+  matchScore: number;
+  urgencyScore: number;
+  budgetFitScore: number;
+  priorityScore: number;
+  scoringBreakdown: ScoringBreakdown;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -49,7 +59,9 @@ export interface IStorage {
   createLead(lead: InsertGovernmentLead): Promise<GovernmentLead>;
   updateLead(id: number, lead: Partial<InsertGovernmentLead>): Promise<GovernmentLead | undefined>;
   updateLeadEnrichment(id: number, enrichment: LeadEnrichmentData): Promise<GovernmentLead | undefined>;
+  updateLeadScoring(id: number, scoring: LeadScoringData): Promise<GovernmentLead | undefined>;
   deleteLead(id: number): Promise<boolean>;
+  getTopScoredLeads(limit: number): Promise<GovernmentLead[]>;
 
   getScriptByLeadId(leadId: number, scriptStyle?: ScriptStyle): Promise<CallScript | undefined>;
   getScriptsByLeadId(leadId: number): Promise<CallScript[]>;
@@ -116,6 +128,32 @@ export class DatabaseStorage implements IStorage {
   async deleteLead(id: number): Promise<boolean> {
     const result = await db.delete(governmentLeads).where(eq(governmentLeads.id, id));
     return true;
+  }
+
+  async updateLeadScoring(id: number, scoring: LeadScoringData): Promise<GovernmentLead | undefined> {
+    const [lead] = await db
+      .update(governmentLeads)
+      .set({
+        likelihoodScore: scoring.likelihoodScore,
+        matchScore: scoring.matchScore,
+        urgencyScore: scoring.urgencyScore,
+        budgetFitScore: scoring.budgetFitScore,
+        priorityScore: scoring.priorityScore,
+        scoringBreakdown: scoring.scoringBreakdown,
+        lastScoredAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(governmentLeads.id, id))
+      .returning();
+    return lead;
+  }
+
+  async getTopScoredLeads(limit: number): Promise<GovernmentLead[]> {
+    return db
+      .select()
+      .from(governmentLeads)
+      .orderBy(desc(governmentLeads.priorityScore))
+      .limit(limit);
   }
 
   async updateLeadEnrichment(id: number, enrichment: LeadEnrichmentData): Promise<GovernmentLead | undefined> {

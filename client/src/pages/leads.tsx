@@ -230,7 +230,7 @@ export default function LeadsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[280px]">
+                      <TableHead className="w-[250px]">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -243,7 +243,6 @@ export default function LeadsPage() {
                       </TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>State</TableHead>
-                      <TableHead>Phone</TableHead>
                       <TableHead>
                         <Button
                           variant="ghost"
@@ -252,6 +251,28 @@ export default function LeadsPage() {
                           onClick={() => handleSort("priorityScore")}
                         >
                           Priority
+                          <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 -ml-3"
+                          onClick={() => handleSort("likelihoodScore")}
+                        >
+                          Likelihood
+                          <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 -ml-3"
+                          onClick={() => handleSort("matchScore")}
+                        >
+                          Match
                           <ArrowUpDown className="h-3 w-3" />
                         </Button>
                       </TableHead>
@@ -294,25 +315,48 @@ export default function LeadsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {lead.phoneNumber ? (
-                            <span className="font-mono text-sm">{lead.phoneNumber}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
                           <div className="flex items-center gap-2">
                             <div
                               className={`h-2 w-2 rounded-full ${
-                                (lead.priorityScore ?? 0) >= 70
+                                (lead.priorityScore ?? 0) >= 80
                                   ? "bg-green-500"
-                                  : (lead.priorityScore ?? 0) >= 40
+                                  : (lead.priorityScore ?? 0) >= 50
                                   ? "bg-yellow-500"
-                                  : "bg-muted-foreground"
+                                  : "bg-red-500"
                               }`}
                             />
-                            <span className="text-sm">{lead.priorityScore ?? 0}</span>
+                            <span className={`text-sm font-medium ${
+                              (lead.priorityScore ?? 0) >= 80
+                                ? "text-green-600 dark:text-green-400"
+                                : (lead.priorityScore ?? 0) >= 50
+                                ? "text-yellow-600 dark:text-yellow-400"
+                                : "text-red-600 dark:text-red-400"
+                            }`}>
+                              {lead.priorityScore ?? "--"}
+                            </span>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-sm ${
+                            (lead.likelihoodScore ?? 0) >= 80
+                              ? "text-green-600 dark:text-green-400"
+                              : (lead.likelihoodScore ?? 0) >= 50
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-muted-foreground"
+                          }`}>
+                            {lead.likelihoodScore ?? "--"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-sm ${
+                            (lead.matchScore ?? 0) >= 80
+                              ? "text-green-600 dark:text-green-400"
+                              : (lead.matchScore ?? 0) >= 50
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-muted-foreground"
+                          }`}>
+                            {lead.matchScore ?? "--"}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge className={`${statusColors[lead.status]} border-0`}>

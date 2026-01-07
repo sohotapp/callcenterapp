@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler } from "@shared/schema";
+import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   not_contacted: "bg-muted text-muted-foreground",
@@ -185,6 +185,28 @@ export default function LeadDetail() {
       toast({
         title: "Enrichment Failed",
         description: "Failed to enrich lead. Please check if TAVILY_API_KEY is configured.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const scoreMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/leads/${leadId}/score`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Scoring Complete",
+        description: "Lead has been scored successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Scoring Failed",
+        description: "Failed to score lead. Please try again.",
         variant: "destructive",
       });
     },
@@ -791,6 +813,102 @@ export default function LeadDetail() {
                     Visit Website
                   </Button>
                 </a>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Lead Scoring
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center py-2">
+                <div className="text-4xl font-bold" data-testid="text-priority-score">
+                  {lead.priorityScore ?? "--"}
+                </div>
+                <div className="text-sm text-muted-foreground">Priority Score</div>
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span>Likelihood</span>
+                    <span className={`font-medium ${(lead.likelihoodScore ?? 0) >= 80 ? "text-green-600 dark:text-green-400" : (lead.likelihoodScore ?? 0) >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                      {lead.likelihoodScore ?? "--"}
+                    </span>
+                  </div>
+                  <Progress value={lead.likelihoodScore ?? 0} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span>Match</span>
+                    <span className={`font-medium ${(lead.matchScore ?? 0) >= 80 ? "text-green-600 dark:text-green-400" : (lead.matchScore ?? 0) >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                      {lead.matchScore ?? "--"}
+                    </span>
+                  </div>
+                  <Progress value={lead.matchScore ?? 0} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span>Urgency</span>
+                    <span className={`font-medium ${(lead.urgencyScore ?? 0) >= 80 ? "text-green-600 dark:text-green-400" : (lead.urgencyScore ?? 0) >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                      {lead.urgencyScore ?? "--"}
+                    </span>
+                  </div>
+                  <Progress value={lead.urgencyScore ?? 0} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span>Budget Fit</span>
+                    <span className={`font-medium ${(lead.budgetFitScore ?? 0) >= 80 ? "text-green-600 dark:text-green-400" : (lead.budgetFitScore ?? 0) >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                      {lead.budgetFitScore ?? "--"}
+                    </span>
+                  </div>
+                  <Progress value={lead.budgetFitScore ?? 0} className="h-2" />
+                </div>
+              </div>
+
+              {lead.scoringBreakdown && (lead.scoringBreakdown as ScoringBreakdown).notes && (lead.scoringBreakdown as ScoringBreakdown).notes!.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Insights</h4>
+                    <ul className="space-y-1">
+                      {(lead.scoringBreakdown as ScoringBreakdown).notes!.map((note, idx) => (
+                        <li key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
+                          <TrendingUp className="h-3 w-3 mt-0.5 shrink-0 text-green-500" />
+                          {note}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              )}
+              
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => scoreMutation.mutate()}
+                disabled={scoreMutation.isPending}
+                data-testid="button-recalculate-score"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${scoreMutation.isPending ? "animate-spin" : ""}`} />
+                {scoreMutation.isPending ? "Scoring..." : "Recalculate Score"}
+              </Button>
+              
+              {lead.lastScoredAt && (
+                <div className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Last scored: {new Date(lead.lastScoredAt).toLocaleString()}
+                </div>
               )}
             </CardContent>
           </Card>

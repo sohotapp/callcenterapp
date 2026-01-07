@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   Building2,
@@ -9,7 +9,12 @@ import {
   Search,
   Filter,
   ArrowUpDown,
+  RefreshCw,
+  Star,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +122,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("all");
+  const { toast } = useToast();
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/stats"],
@@ -124,6 +130,32 @@ export default function Dashboard() {
 
   const { data: leads, isLoading: leadsLoading } = useQuery<GovernmentLead[]>({
     queryKey: ["/api/leads"],
+  });
+
+  const { data: topScoredLeads, isLoading: topScoredLoading } = useQuery<GovernmentLead[]>({
+    queryKey: ["/api/leads/top-scored"],
+  });
+
+  const scoreAllMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/leads/score-all");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads/top-scored"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Scoring Complete",
+        description: "All leads have been scored successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Scoring Failed",
+        description: "Failed to score leads. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const filteredLeads = leads?.filter((lead) => {
@@ -141,7 +173,7 @@ export default function Dashboard() {
     return matchesSearch && matchesStatus && matchesState;
   });
 
-  const uniqueStates = [...new Set(leads?.map((l) => l.state) ?? [])].sort();
+  const uniqueStates = Array.from(new Set(leads?.map((l) => l.state) ?? [])).sort();
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -180,6 +212,82 @@ export default function Dashboard() {
           loading={statsLoading}
         />
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">
+          <CardTitle className="flex items-center gap-2">
+            <Star className="h-5 w-5 text-yellow-500" />
+            Top Scored Leads
+          </CardTitle>
+          <Button
+            variant="outline"
+            onClick={() => scoreAllMutation.mutate()}
+            disabled={scoreAllMutation.isPending}
+            data-testid="button-score-all"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${scoreAllMutation.isPending ? "animate-spin" : ""}`} />
+            {scoreAllMutation.isPending ? "Scoring..." : "Score All Leads"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {topScoredLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : topScoredLeads && topScoredLeads.length > 0 ? (
+            <div className="space-y-3">
+              {topScoredLeads.slice(0, 5).map((lead, idx) => (
+                <Link key={lead.id} href={`/leads/${lead.id}`}>
+                  <div
+                    className="flex items-center justify-between gap-4 p-3 rounded-md hover-elevate cursor-pointer bg-muted/50"
+                    data-testid={`top-lead-${lead.id}`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                        {idx + 1}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium truncate">{lead.institutionName}</span>
+                        <span className="text-xs text-muted-foreground">{lead.state}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col items-end gap-1 min-w-[100px]">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-lg font-bold ${(lead.priorityScore ?? 0) >= 80 ? "text-green-600 dark:text-green-400" : (lead.priorityScore ?? 0) >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                            {lead.priorityScore ?? 0}
+                          </span>
+                        </div>
+                        <Progress value={lead.priorityScore ?? 0} className="h-1 w-full" />
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Star className="h-10 w-10 text-muted-foreground/50 mb-3" />
+              <h3 className="text-base font-medium">No scored leads</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Score your leads to see top priorities
+              </p>
+              <Button
+                className="mt-3"
+                onClick={() => scoreAllMutation.mutate()}
+                disabled={scoreAllMutation.isPending}
+                data-testid="button-score-all-empty"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${scoreAllMutation.isPending ? "animate-spin" : ""}`} />
+                Score All Leads
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">

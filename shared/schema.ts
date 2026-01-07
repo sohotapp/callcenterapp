@@ -49,6 +49,32 @@ export const competitorAnalysisSchema = z.object({
 
 export type CompetitorAnalysis = z.infer<typeof competitorAnalysisSchema>;
 
+// Scoring breakdown schema for JSONB storage
+export const scoringBreakdownSchema = z.object({
+  likelihoodFactors: z.object({
+    painPointScore: z.number(),
+    buyingSignalScore: z.number(),
+    budgetScore: z.number(),
+    techMaturityScore: z.number(),
+    recentNewsScore: z.number(),
+  }),
+  matchFactors: z.object({
+    painPointMatchScore: z.number(),
+    departmentRelevanceScore: z.number(),
+    techStackCompatibilityScore: z.number(),
+    scaleAppropriatenessScore: z.number(),
+  }),
+  urgencyFactors: z.object({
+    rfpMentionScore: z.number(),
+    budgetCycleScore: z.number(),
+    techComplaintScore: z.number(),
+    itHiringScore: z.number(),
+  }),
+  notes: z.array(z.string()).optional(),
+});
+
+export type ScoringBreakdown = z.infer<typeof scoringBreakdownSchema>;
+
 // Government Lead - main entity for county/local government contacts
 export const governmentLeads = pgTable("government_leads", {
   id: serial("id").primaryKey(),
@@ -65,6 +91,12 @@ export const governmentLeads = pgTable("government_leads", {
   annualBudget: text("annual_budget"),
   techMaturityScore: integer("tech_maturity_score"), // 1-10 scale
   priorityScore: integer("priority_score"), // 0-100 calculated score
+  likelihoodScore: integer("likelihood_score"), // 1-100 overall purchase probability
+  matchScore: integer("match_score"), // 1-100 how well they match rltx.ai services
+  urgencyScore: integer("urgency_score"), // 1-100 urgency based on buying signals
+  budgetFitScore: integer("budget_fit_score"), // 1-100 budget alignment
+  scoringBreakdown: jsonb("scoring_breakdown").$type<ScoringBreakdown>(),
+  lastScoredAt: timestamp("last_scored_at"),
   status: text("status").notNull().default("not_contacted"), // not_contacted, contacted, follow_up, qualified, closed_won, closed_lost
   painPoints: text("pain_points").array(),
   notes: text("notes"),

@@ -4,121 +4,38 @@ import { storage } from "./storage";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { insertGovernmentLeadSchema, insertScrapeJobSchema } from "@shared/schema";
+import pLimit from "p-limit";
+import pRetry from "p-retry";
+import { 
+  getCountiesByState, 
+  generatePhoneNumber, 
+  generateWebsite, 
+  generateEmail,
+  type CountyData 
+} from "./county-data";
 
 const anthropic = new Anthropic({
   apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
-const US_COUNTY_DATA: Array<{
-  state: string;
-  counties: Array<{
-    name: string;
-    population?: number;
-    seat?: string;
-  }>;
-}> = [
-  {
-    state: "California",
-    counties: [
-      { name: "Los Angeles County", population: 10014009, seat: "Los Angeles" },
-      { name: "San Diego County", population: 3338330, seat: "San Diego" },
-      { name: "Orange County", population: 3186989, seat: "Santa Ana" },
-      { name: "Riverside County", population: 2470546, seat: "Riverside" },
-      { name: "San Bernardino County", population: 2180085, seat: "San Bernardino" },
-    ],
-  },
-  {
-    state: "Texas",
-    counties: [
-      { name: "Harris County", population: 4731145, seat: "Houston" },
-      { name: "Dallas County", population: 2613539, seat: "Dallas" },
-      { name: "Tarrant County", population: 2110640, seat: "Fort Worth" },
-      { name: "Bexar County", population: 2009324, seat: "San Antonio" },
-      { name: "Travis County", population: 1290188, seat: "Austin" },
-    ],
-  },
-  {
-    state: "Florida",
-    counties: [
-      { name: "Miami-Dade County", population: 2701767, seat: "Miami" },
-      { name: "Broward County", population: 1944375, seat: "Fort Lauderdale" },
-      { name: "Palm Beach County", population: 1496770, seat: "West Palm Beach" },
-      { name: "Hillsborough County", population: 1471968, seat: "Tampa" },
-      { name: "Orange County", population: 1393452, seat: "Orlando" },
-    ],
-  },
-  {
-    state: "New York",
-    counties: [
-      { name: "Kings County", population: 2736074, seat: "Brooklyn" },
-      { name: "Queens County", population: 2405464, seat: "Jamaica" },
-      { name: "New York County", population: 1694251, seat: "New York City" },
-      { name: "Suffolk County", population: 1525920, seat: "Riverhead" },
-      { name: "Bronx County", population: 1472654, seat: "Bronx" },
-    ],
-  },
-  {
-    state: "Pennsylvania",
-    counties: [
-      { name: "Philadelphia County", population: 1603797, seat: "Philadelphia" },
-      { name: "Allegheny County", population: 1250578, seat: "Pittsburgh" },
-      { name: "Montgomery County", population: 856553, seat: "Norristown" },
-      { name: "Bucks County", population: 646538, seat: "Doylestown" },
-      { name: "Delaware County", population: 576830, seat: "Media" },
-    ],
-  },
-  {
-    state: "Illinois",
-    counties: [
-      { name: "Cook County", population: 5275541, seat: "Chicago" },
-      { name: "DuPage County", population: 932877, seat: "Wheaton" },
-      { name: "Lake County", population: 714342, seat: "Waukegan" },
-      { name: "Will County", population: 696355, seat: "Joliet" },
-      { name: "Kane County", population: 516522, seat: "Geneva" },
-    ],
-  },
-  {
-    state: "Ohio",
-    counties: [
-      { name: "Franklin County", population: 1323807, seat: "Columbus" },
-      { name: "Cuyahoga County", population: 1264817, seat: "Cleveland" },
-      { name: "Hamilton County", population: 830639, seat: "Cincinnati" },
-      { name: "Summit County", population: 540428, seat: "Akron" },
-      { name: "Montgomery County", population: 537309, seat: "Dayton" },
-    ],
-  },
-  {
-    state: "Georgia",
-    counties: [
-      { name: "Fulton County", population: 1066710, seat: "Atlanta" },
-      { name: "Gwinnett County", population: 957062, seat: "Lawrenceville" },
-      { name: "Cobb County", population: 766149, seat: "Marietta" },
-      { name: "DeKalb County", population: 764382, seat: "Decatur" },
-      { name: "Clayton County", population: 297595, seat: "Jonesboro" },
-    ],
-  },
-  {
-    state: "North Carolina",
-    counties: [
-      { name: "Mecklenburg County", population: 1115482, seat: "Charlotte" },
-      { name: "Wake County", population: 1129410, seat: "Raleigh" },
-      { name: "Guilford County", population: 541299, seat: "Greensboro" },
-      { name: "Forsyth County", population: 382295, seat: "Winston-Salem" },
-      { name: "Cumberland County", population: 335509, seat: "Fayetteville" },
-    ],
-  },
-  {
-    state: "Michigan",
-    counties: [
-      { name: "Wayne County", population: 1793561, seat: "Detroit" },
-      { name: "Oakland County", population: 1274395, seat: "Pontiac" },
-      { name: "Macomb County", population: 881217, seat: "Mount Clemens" },
-      { name: "Kent County", population: 657974, seat: "Grand Rapids" },
-      { name: "Genesee County", population: 406892, seat: "Flint" },
-    ],
-  },
-];
+const STATE_ABBREVIATIONS: Record<string, string> = {
+  "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+  "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+  "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+  "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+  "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+  "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+  "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+  "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+  "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+  "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+  "District of Columbia": "DC"
+};
+
+const ABBREVIATION_TO_STATE: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_ABBREVIATIONS).map(([name, abbr]) => [abbr, name])
+);
 
 const DEPARTMENT_TYPES = [
   "County Administration",
@@ -133,11 +50,89 @@ const DEPARTMENT_TYPES = [
   "Planning & Development",
 ];
 
-function generatePhoneNumber(): string {
-  const areaCode = Math.floor(Math.random() * 900) + 100;
-  const prefix = Math.floor(Math.random() * 900) + 100;
-  const lineNumber = Math.floor(Math.random() * 9000) + 1000;
-  return `(${areaCode}) ${prefix}-${lineNumber}`;
+interface AiEnrichmentResult {
+  techMaturityScore: number;
+  painPoints: string[];
+  estimatedBudget: string;
+}
+
+async function enrichCountyWithAI(
+  countyName: string,
+  state: string,
+  population: number | null | undefined,
+  department: string
+): Promise<AiEnrichmentResult> {
+  const prompt = `Analyze this US county government department and provide technology insights.
+
+COUNTY: ${countyName}
+STATE: ${state}
+POPULATION: ${population?.toLocaleString() || "Unknown"}
+DEPARTMENT: ${department}
+
+Based on typical government technology patterns, population size, and regional characteristics, provide:
+
+1. A tech maturity score (1-10) where:
+   - 1-3: Very low tech adoption, mostly paper-based processes
+   - 4-6: Basic digital systems, some legacy software
+   - 7-8: Modern systems with some automation
+   - 9-10: Advanced tech adoption, cloud-first approach
+
+2. The top 3 most likely technology pain points this department faces
+
+3. An estimated annual IT/technology budget range based on population and department type
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "techMaturityScore": <number 1-10>,
+  "painPoints": ["pain point 1", "pain point 2", "pain point 3"],
+  "estimatedBudget": "$X - $Y"
+}`;
+
+  try {
+    const message = await pRetry(
+      async () => {
+        return await anthropic.messages.create({
+          model: "claude-sonnet-4-5",
+          max_tokens: 500,
+          messages: [{ role: "user", content: prompt }],
+        });
+      },
+      {
+        retries: 2,
+        onFailedAttempt: (error) => {
+          console.log(`AI enrichment attempt ${error.attemptNumber} failed for ${countyName}. ${error.retriesLeft} retries left.`);
+        },
+      }
+    );
+
+    const content = message.content[0];
+    if (content.type !== "text") {
+      throw new Error("Unexpected AI response type");
+    }
+
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        techMaturityScore: Math.max(1, Math.min(10, parsed.techMaturityScore || 5)),
+        painPoints: parsed.painPoints || ["Legacy system integration", "Manual data processing", "Citizen service efficiency"],
+        estimatedBudget: parsed.estimatedBudget || "Unknown",
+      };
+    }
+  } catch (error) {
+    console.error(`AI enrichment failed for ${countyName}:`, error);
+  }
+
+  const baseScore = population && population > 500000 ? 6 : population && population > 100000 ? 5 : 4;
+  return {
+    techMaturityScore: baseScore,
+    painPoints: [
+      "Legacy system modernization needed",
+      "Manual processes reducing efficiency",
+      "Data silos across departments"
+    ],
+    estimatedBudget: population ? `$${Math.round(population * 15 / 1000000)}M - $${Math.round(population * 25 / 1000000)}M` : "Unknown",
+  };
 }
 
 function calculatePriorityScore(lead: {
@@ -155,6 +150,18 @@ function calculatePriorityScore(lead: {
     else if (lead.techMaturityScore <= 6) score += 10;
   }
   return Math.min(100, Math.max(0, score));
+}
+
+function formatPhoneNumber(phone: string | null | undefined): string | undefined {
+  if (!phone) return undefined;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return phone;
 }
 
 const scrapeStartSchema = z.object({
@@ -513,83 +520,101 @@ Focus on AI/ML capabilities, RAG systems, custom software development, and enter
 
       (async () => {
         let leadsFound = 0;
-        let statesCompleted = 0;
+        let statesProcessed = 0;
 
         try {
-          for (const stateName of states) {
-            const stateData = US_COUNTY_DATA.find(
-              (s) => s.state.toLowerCase() === stateName.toLowerCase()
-            );
+          console.log(`Starting scrape job ${job.id} for states: ${states.join(", ")}`);
+          
+          const counties = getCountiesByState(states);
+          console.log(`Found ${counties.length} counties from embedded data`);
 
-            if (stateData) {
-              for (const county of stateData.counties) {
-                const numDepts = Math.floor(Math.random() * 3) + 1;
-                const selectedDepts = DEPARTMENT_TYPES.sort(() => Math.random() - 0.5).slice(0, numDepts);
+          if (counties.length === 0) {
+            await storage.updateScrapeJob(job.id, {
+              status: "completed",
+              statesCompleted: states.length,
+              leadsFound: 0,
+              completedAt: new Date(),
+              errorMessage: "No counties found for selected states",
+            });
+            return;
+          }
+
+          const countiesByState: Record<string, CountyData[]> = {};
+          for (const county of counties) {
+            const stateName = county.state;
+            if (!countiesByState[stateName]) {
+              countiesByState[stateName] = [];
+            }
+            countiesByState[stateName].push(county);
+          }
+
+          const limit = pLimit(3);
+
+          for (const stateName of states) {
+            const stateCounties = countiesByState[stateName] || 
+              countiesByState[ABBREVIATION_TO_STATE[stateName.toUpperCase()]] || 
+              [];
+
+            console.log(`Processing ${stateCounties.length} counties for ${stateName}`);
+
+            const countyPromises = stateCounties.map((county) =>
+              limit(async () => {
+                const countyName = county.name;
+                const population = county.population;
+                
+                const numDepts = Math.min(3, Math.max(1, Math.floor(Math.random() * 2) + 1));
+                const selectedDepts = [...DEPARTMENT_TYPES]
+                  .sort(() => Math.random() - 0.5)
+                  .slice(0, numDepts);
 
                 for (const dept of selectedDepts) {
                   try {
-                    const techScore = Math.floor(Math.random() * 10) + 1;
-                    const budget = county.population
-                      ? `$${Math.round((county.population * 2500) / 1000000)}M - $${Math.round((county.population * 3500) / 1000000)}M`
-                      : undefined;
+                    const enrichment = await enrichCountyWithAI(
+                      countyName,
+                      county.state,
+                      population,
+                      dept
+                    );
 
-                    const priorityScore = calculatePriorityScore({ population: county.population, techMaturityScore: techScore });
+                    const priorityScore = calculatePriorityScore({
+                      population,
+                      techMaturityScore: enrichment.techMaturityScore,
+                    });
+
+                    const fullCountyName = countyName.toLowerCase().includes("county") 
+                      ? countyName 
+                      : `${countyName} County`;
 
                     await storage.createLead({
-                      institutionName: county.name,
+                      institutionName: fullCountyName,
                       institutionType: "county",
                       department: dept,
-                      state: stateData.state,
-                      county: county.name.replace(" County", ""),
-                      city: county.seat,
-                      phoneNumber: generatePhoneNumber(),
-                      email: `${dept.toLowerCase().replace(/\s+/g, ".")}@${county.name.toLowerCase().replace(/\s+/g, "")}.gov`,
-                      website: `https://www.${county.name.toLowerCase().replace(/\s+/g, "")}.gov`,
-                      population: county.population,
-                      annualBudget: budget,
-                      techMaturityScore: techScore,
+                      state: county.state,
+                      county: countyName,
+                      city: county.countySeat,
+                      phoneNumber: generatePhoneNumber(county.areaCodes),
+                      email: generateEmail(dept, countyName),
+                      website: generateWebsite(countyName, county.stateAbbr),
+                      population: population || null,
+                      annualBudget: enrichment.estimatedBudget,
+                      techMaturityScore: enrichment.techMaturityScore,
                       priorityScore,
                       status: "not_contacted",
+                      painPoints: enrichment.painPoints,
                     });
                     leadsFound++;
                   } catch (insertError) {
-                    console.error("Error inserting lead:", insertError);
+                    console.error(`Error inserting lead for ${countyName}:`, insertError);
                   }
                 }
-              }
-            } else {
-              const fakeCities = [`${stateName} City`, `${stateName} Metro`];
-              for (const city of fakeCities) {
-                try {
-                  const dept = DEPARTMENT_TYPES[Math.floor(Math.random() * DEPARTMENT_TYPES.length)];
-                  const techScore = Math.floor(Math.random() * 10) + 1;
-                  const population = Math.floor(Math.random() * 500000) + 50000;
-                  const priorityScore = calculatePriorityScore({ population, techMaturityScore: techScore });
+              })
+            );
 
-                  await storage.createLead({
-                    institutionName: `${city} Municipal Government`,
-                    institutionType: "city",
-                    department: dept,
-                    state: stateName,
-                    city: city,
-                    phoneNumber: generatePhoneNumber(),
-                    email: `${dept.toLowerCase().replace(/\s+/g, ".")}@${city.toLowerCase().replace(/\s+/g, "")}.gov`,
-                    website: `https://www.${city.toLowerCase().replace(/\s+/g, "")}.gov`,
-                    population,
-                    techMaturityScore: techScore,
-                    priorityScore,
-                    status: "not_contacted",
-                  });
-                  leadsFound++;
-                } catch (insertError) {
-                  console.error("Error inserting lead:", insertError);
-                }
-              }
-            }
+            await Promise.all(countyPromises);
 
-            statesCompleted++;
+            statesProcessed++;
             await storage.updateScrapeJob(job.id, {
-              statesCompleted,
+              statesCompleted: statesProcessed,
               leadsFound,
             });
           }
@@ -600,6 +625,8 @@ Focus on AI/ML capabilities, RAG systems, custom software development, and enter
             leadsFound,
             completedAt: new Date(),
           });
+
+          console.log(`Scrape job ${job.id} completed. Found ${leadsFound} leads.`);
         } catch (error) {
           console.error("Scrape job failed:", error);
           await storage.updateScrapeJob(job.id, {

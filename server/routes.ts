@@ -31,6 +31,7 @@ import { scrapeRealCountyData } from "./real-data-scraper";
 import { queueAutoScrapeForIcp, findMatchingLeadTargets } from "./icp-scraper";
 import { generateIcpSuggestions } from "./icp-ai";
 import { matchLeadsToIcp, findBestIcpForLead } from "./icp-matcher";
+import { scrapeForIcp, type ScrapingOptions, type ScrapeResult } from "./playbook-orchestrator";
 
 // Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
 let anthropicClient: Anthropic | null = null;
@@ -1267,11 +1268,108 @@ Focus on making the content compelling for enterprise and government decision-ma
         message: `Scrape job started for ICP: ${profile.displayName}`,
         scrapeJobId: scrapeJob.id,
         targetCounties: targets.length,
-        states: [...new Set(targets.map(t => t.county.state))],
+        states: Array.from(new Set(targets.map(t => t.county.state))),
       });
     } catch (error) {
       console.error("Error triggering ICP scrape:", error);
       res.status(500).json({ error: "Failed to trigger ICP scrape" });
+    }
+  });
+
+  // New endpoint: Scrape using playbook orchestrator with specific entities
+  const playbookScrapeSchema = z.object({
+    entities: z.array(z.object({
+      name: z.string().min(1, "Entity name is required"),
+      state: z.string().optional(),
+      department: z.string().optional(),
+      entityType: z.string().optional(),
+    })).min(1, "At least one entity is required"),
+    maxResults: z.number().optional().default(5),
+    dryRun: z.boolean().optional().default(false),
+  });
+
+  app.post("/api/icp/:id/playbook-scrape", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+
+      if (!profile.playbookConfig) {
+        return res.status(400).json({ 
+          error: "No playbook configuration",
+          message: "This ICP does not have a playbook configured. Please update the ICP settings."
+        });
+      }
+      
+      const parseResult = playbookScrapeSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+
+      const { entities, maxResults, dryRun } = parseResult.data;
+
+      // Create a scrape job to track progress
+      const job = await storage.createScrapeJob({
+        status: "running",
+        totalStates: 1,
+        statesCompleted: 0,
+        leadsFound: 0,
+        startedAt: new Date(),
+        icpId: id,
+        icpName: profile.displayName,
+      });
+
+      // Run scraping asynchronously
+      (async () => {
+        try {
+          console.log(`[PlaybookScrape] Starting scrape job ${job.id} for ICP: ${profile.displayName}`);
+          console.log(`[PlaybookScrape] Entities to scrape:`, entities.map(e => e.name).join(", "));
+
+          const result = await scrapeForIcp(id, {
+            entities,
+            maxResults,
+            dryRun,
+          });
+
+          await storage.updateScrapeJob(job.id, {
+            status: result.success ? "completed" : "failed",
+            statesCompleted: 1,
+            leadsFound: result.leadsCreated,
+            completedAt: new Date(),
+            errorMessage: result.errors.length > 0 ? result.errors.join("; ") : undefined,
+          });
+
+          console.log(`[PlaybookScrape] Job ${job.id} completed: ${result.leadsCreated} leads created`);
+        } catch (error) {
+          console.error(`[PlaybookScrape] Job ${job.id} failed:`, error);
+          await storage.updateScrapeJob(job.id, {
+            status: "failed",
+            completedAt: new Date(),
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      })();
+
+      res.json({
+        message: `Playbook scrape started for ICP: ${profile.displayName}`,
+        scrapeJobId: job.id,
+        icpId: id,
+        icpName: profile.displayName,
+        entitiesCount: entities.length,
+        playbookConfig: {
+          targetEntityTypes: profile.playbookConfig.targetEntityTypes,
+          dataSources: profile.playbookConfig.dataSources,
+        },
+      });
+    } catch (error) {
+      console.error("Error starting playbook scrape:", error);
+      res.status(500).json({ error: "Failed to start playbook scrape" });
     }
   });
 

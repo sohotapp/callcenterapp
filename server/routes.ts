@@ -217,6 +217,16 @@ export async function registerRoutes(
     res.status(200).json({ status: "ok" });
   });
 
+  // API key status check - allows frontend to warn users before they try to scrape
+  app.get("/api/system/api-keys-status", (req: Request, res: Response) => {
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+    
+    res.json({
+      tavily: !!tavilyKey && tavilyKey.length > 0,
+      anthropic: !!anthropicKey && anthropicKey.length > 0,
+    });
+  });
 
   app.get("/api/stats", async (req: Request, res: Response) => {
     try {

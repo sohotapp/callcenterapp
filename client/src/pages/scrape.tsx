@@ -14,8 +14,10 @@ import {
   Target,
   Database,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -86,7 +88,13 @@ export default function ScrapePage() {
     queryKey: ["/api/icp"],
   });
 
+  const { data: apiKeyStatus } = useQuery<{ tavily: boolean; anthropic: boolean }>({
+    queryKey: ["/api/system/api-keys-status"],
+    staleTime: 60000,
+  });
+
   const selectedIcp = icpProfiles?.find((icp) => icp.id.toString() === selectedIcpId);
+  const missingApiKeys = apiKeyStatus && (!apiKeyStatus.tavily || !apiKeyStatus.anthropic);
 
   useEffect(() => {
     if (!jobs) return;
@@ -231,6 +239,20 @@ export default function ScrapePage() {
           Collect contact information from various data sources
         </p>
       </div>
+
+      {missingApiKeys && (
+        <Alert variant="destructive" data-testid="alert-missing-api-keys">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>API Keys Missing</AlertTitle>
+          <AlertDescription>
+            Scraping requires API keys to be configured. Missing: 
+            {!apiKeyStatus?.tavily && " Tavily API Key"}
+            {!apiKeyStatus?.tavily && !apiKeyStatus?.anthropic && ","}
+            {!apiKeyStatus?.anthropic && " Anthropic API Key"}
+            . Please add these in your Replit Secrets.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} data-testid="tabs-scrape-mode">
         <TabsList className="grid w-full max-w-md grid-cols-2">

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, serial, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -75,16 +75,31 @@ export const insertCallScriptSchema = createInsertSchema(callScripts).omit({
 export type InsertCallScript = z.infer<typeof insertCallScriptSchema>;
 export type CallScript = typeof callScripts.$inferSelect;
 
+// Case study structure for JSONB storage
+export const caseStudySchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  results: z.string(),
+});
+
+export type CaseStudy = z.infer<typeof caseStudySchema>;
+
 // Company Profile - stores rltx.ai capabilities extracted by AI
 export const companyProfile = pgTable("company_profile", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").notNull().default("rltx.ai"),
-  valueProposition: text("value_proposition").notNull(),
+  tagline: text("tagline"),
+  description: text("description"),
   services: text("services").array(),
-  priceRange: text("price_range").notNull(),
-  targetMarket: text("target_market").notNull(),
+  capabilities: text("capabilities").array(),
+  caseStudies: jsonb("case_studies").$type<CaseStudy[]>(),
+  targetMarkets: text("target_markets").array(),
+  priceRange: text("price_range"),
   uniqueSellingPoints: text("unique_selling_points").array(),
-  caseStudies: text("case_studies").array(),
+  competitiveAdvantages: text("competitive_advantages").array(),
+  scrapedFromUrl: text("scraped_from_url"),
+  lastScrapedAt: timestamp("last_scraped_at"),
+  manuallyEdited: boolean("manually_edited").default(false),
   lastUpdated: timestamp("last_updated").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

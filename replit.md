@@ -1,9 +1,26 @@
-# GovLeads - Hyper-Personalized Outbound GTM Platform
+# RLTX.ai GTM Platform - Multi-Vertical Lead Generation
 
 ## Overview
-GovLeads is a world-class outbound GTM platform (like Apollo/Unify) that helps rltx.ai ("Palantir for AI") sell custom end-to-end AI systems to local government institutions. It uses Tavily API for real-time web research to scrape REAL contact data from actual government websites, and Claude 4.5 Sonnet for deep analysis and script generation.
+RLTX.ai GTM Platform is a world-class outbound platform (like Apollo/Unify) that helps rltx.ai ("Palantir for AI") sell custom end-to-end AI systems across multiple verticals: Government, Healthcare, Legal, Financial Services, and Private Equity. It uses Tavily API for real-time web research to scrape REAL contact data from actual websites, and Claude 4.5 Sonnet for deep analysis and script generation.
 
-**Key Differentiator**: All contact information (emails, phone numbers, decision makers) is scraped from REAL government websites - no fake/generated data.
+**Key Differentiator**: All contact information (emails, phone numbers, decision makers) is scraped from REAL websites - no fake/generated data allowed. The system validates API keys and fails fast if real data sources are unavailable.
+
+## Multi-ICP Playbook System
+
+The platform uses a **Playbook-based architecture** where each ICP (Ideal Customer Profile) has its own configuration for:
+- **Target Entity Types**: hospital, law_firm, bank, pe_firm, county, etc.
+- **Query Templates**: Customizable search queries with {entity}, {state}, {department} placeholders
+- **Data Sources**: tavily_web, cms_hospitals, fdic_banks, state_bar, crunchbase, us_census
+- **Enrichment Hints**: Guidance for Claude AI on what decision makers to look for
+- **Value Proposition**: ICP-specific pitch for rltx.ai services
+- **Compliance Flags**: HIPAA, SOC2, PCI as needed
+
+### Supported ICPs
+1. **Government** - Counties, cities, districts with IT/Finance/Public Works focus
+2. **Healthcare** - Hospitals, health systems, clinics with CIO/CMIO focus
+3. **Legal** - Law firms with Managing Partner/CIO focus
+4. **Financial Services** - Banks, credit unions, insurance with CTO/CIO focus
+5. **Private Equity** - PE firms, portfolio companies with Operating Partner focus
 
 ## Tech Stack
 - **Frontend**: React, Tailwind CSS, Shadcn UI, TanStack Query, Recharts
@@ -102,6 +119,7 @@ client/src/
 server/
   ├── routes.ts              # API endpoints
   ├── storage.ts             # Database operations
+  ├── playbook-orchestrator.ts # Multi-ICP playbook scraping engine
   ├── real-data-scraper.ts   # Tavily + Claude real data extraction
   ├── email-validator.ts     # MX record validation
   ├── enrichment.ts          # Lead enrichment with web research
@@ -143,6 +161,7 @@ shared/
 - `GET /api/icp` - All ICP profiles
 - `PUT /api/icp/:id` - Update ICP profile (triggers auto-scrape if enabled)
 - `POST /api/icp/:id/trigger-scrape` - Manually trigger scraping for ICP
+- `POST /api/icp/:id/playbook-scrape` - Scrape specific entities using playbook config
 - `GET /api/icp/:id/matching-targets` - Preview matching targets
 
 ### Email Sequences

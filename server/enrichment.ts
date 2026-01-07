@@ -8,7 +8,7 @@ const anthropic = new Anthropic({
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
-const tavilyLimit = pLimit(2);
+const tavilyLimit = pLimit(4); // Increased from 2 for faster enrichment
 
 interface TavilyResult {
   title: string;
@@ -73,14 +73,13 @@ async function searchTavily(query: string): Promise<TavilyResult[]> {
 function buildEnrichmentQueries(lead: GovernmentLead): string[] {
   const institutionName = lead.institutionName;
   const state = lead.state;
-  const county = lead.county || "";
+  const department = lead.department || "administration";
 
+  // Reduced from 5 to 3 queries for faster enrichment while maintaining quality
   return [
-    `${institutionName} ${state} government officials leadership staff directory`,
-    `${institutionName} ${state} technology software systems IT infrastructure`,
-    `${institutionName} ${state} recent news initiatives projects 2024 2025`,
-    `${institutionName} ${state} RFP bids contracts technology procurement`,
-    `${institutionName} ${county} ${state} budget technology spending appropriations`,
+    `${institutionName} ${state} government officials leadership staff directory contact`,
+    `${institutionName} ${state} technology RFP initiatives news 2024 2025`,
+    `${institutionName} ${department} ${state} budget spending modernization`,
   ];
 }
 
@@ -273,7 +272,7 @@ export async function enrichLeadsBatch(
   onProgress?: (completed: number, total: number) => void
 ): Promise<Map<number, EnrichmentResult>> {
   const results = new Map<number, EnrichmentResult>();
-  const batchLimit = pLimit(1);
+  const batchLimit = pLimit(3); // Increased from 1 for 3x faster batch enrichment
   let completed = 0;
 
   const enrichmentPromises = leads.map((lead) =>

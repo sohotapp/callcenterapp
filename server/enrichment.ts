@@ -90,7 +90,7 @@ async function analyzeWithClaude(
 ): Promise<EnrichmentResult> {
   const allResults: string[] = [];
   
-  for (const [query, results] of searchResults) {
+  for (const [query, results] of Array.from(searchResults.entries())) {
     if (results.length > 0) {
       allResults.push(`\n=== Query: ${query} ===`);
       for (const result of results) {
@@ -291,4 +291,188 @@ export async function enrichLeadsBatch(
 
   await Promise.all(enrichmentPromises);
   return results;
+}
+
+export interface RealDataEnrichmentResult {
+  recentNews: string[];
+  techStack: string[];
+  painPoints: string[];
+  buyingSignals: string[];
+  decisionMakers: DecisionMaker[];
+  enrichmentScore: number;
+  searchQueries: string[];
+  totalResultsFound: number;
+  enrichedAt: Date;
+}
+
+function buildRealDataQueries(lead: GovernmentLead): string[] {
+  const institutionName = lead.institutionName;
+  const state = lead.state;
+  const department = lead.department || "administration";
+
+  return [
+    `${institutionName} ${state} recent news RFP technology initiatives`,
+    `${institutionName} ${state} IT staff directory contact`,
+    `${institutionName} ${department} budget spending technology`,
+  ];
+}
+
+async function analyzeRealDataWithClaude(
+  lead: GovernmentLead,
+  searchResults: Map<string, TavilyResult[]>
+): Promise<RealDataEnrichmentResult> {
+  const allResults: string[] = [];
+  
+  for (const [query, results] of Array.from(searchResults.entries())) {
+    if (results.length > 0) {
+      allResults.push(`\n=== Search: ${query} ===`);
+      for (const result of results) {
+        allResults.push(`
+Title: ${result.title}
+URL: ${result.url}
+Content: ${result.raw_content || result.content}
+---`);
+      }
+    }
+  }
+
+  const combinedResults = allResults.join("\n");
+  const totalResults = Array.from(searchResults.values()).reduce((sum, arr) => sum + arr.length, 0);
+
+  if (totalResults === 0) {
+    return {
+      recentNews: [],
+      techStack: [],
+      painPoints: ["No public information found - recommend direct outreach"],
+      buyingSignals: [],
+      decisionMakers: [],
+      enrichmentScore: 10,
+      searchQueries: Array.from(searchResults.keys()),
+      totalResultsFound: 0,
+      enrichedAt: new Date(),
+    };
+  }
+
+  const prompt = `Analyze these web search results about a government institution and extract sales intelligence.
+
+INSTITUTION:
+- Name: ${lead.institutionName}
+- Type: ${lead.institutionType}
+- State: ${lead.state}
+- County: ${lead.county || "N/A"}
+- Department: ${lead.department || "General Administration"}
+- Population: ${lead.population?.toLocaleString() || "Unknown"}
+
+SEARCH RESULTS:
+${combinedResults}
+
+Extract structured intelligence. Only include information explicitly found in the search results or clearly inferred from them.
+
+Respond with JSON:
+{
+  "recentNews": [
+    "Recent news item or announcement with date if available",
+    "Another news item about initiatives or projects"
+  ],
+  "techStack": [
+    "Software or system currently in use",
+    "Another technology platform mentioned"
+  ],
+  "painPoints": [
+    "Problems, challenges, or complaints mentioned",
+    "Issues with current systems or processes"
+  ],
+  "buyingSignals": [
+    "Budget approvals or allocations for technology",
+    "RFP announcements or procurement activity",
+    "Hiring for IT or technology positions",
+    "Complaints about current systems needing replacement"
+  ],
+  "decisionMakers": [
+    {
+      "name": "Full Name",
+      "title": "Job Title",
+      "email": "email or null",
+      "phone": "phone or null",
+      "linkedIn": "url or null"
+    }
+  ],
+  "enrichmentScore": 75
+}
+
+Guidelines:
+- recentNews: News from 2024-2025 about technology initiatives, modernization, grants, projects
+- techStack: Any software vendors, systems, or platforms mentioned (ERP, CRM, GIS, websites)
+- painPoints: Complaints, challenges, outdated systems, manual processes mentioned
+- buyingSignals: RFPs, budget increases, federal/state grants, ARPA funding, IT hiring, system replacements
+- decisionMakers: IT directors, department heads, commissioners, CIOs, procurement officers found in results
+- enrichmentScore: 1-100 based on how much valuable intelligence was found
+
+Respond ONLY with valid JSON.`;
+
+  const message = await pRetry(
+    async () => {
+      return await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      });
+    },
+    {
+      retries: 2,
+      onFailedAttempt: (error) => {
+        console.log(`Claude real data analysis attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`);
+      },
+    }
+  );
+
+  const content = message.content[0];
+  if (content.type !== "text") {
+    throw new Error("Unexpected AI response type");
+  }
+
+  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("Failed to parse Claude response as JSON");
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]);
+
+  return {
+    recentNews: parsed.recentNews || [],
+    techStack: parsed.techStack || [],
+    painPoints: parsed.painPoints || [],
+    buyingSignals: parsed.buyingSignals || [],
+    decisionMakers: parsed.decisionMakers || [],
+    enrichmentScore: Math.min(100, Math.max(1, parsed.enrichmentScore || 50)),
+    searchQueries: Array.from(searchResults.keys()),
+    totalResultsFound: totalResults,
+    enrichedAt: new Date(),
+  };
+}
+
+export async function enrichLeadWithRealData(lead: GovernmentLead): Promise<RealDataEnrichmentResult> {
+  const queries = buildRealDataQueries(lead);
+  const searchResults = new Map<string, TavilyResult[]>();
+
+  console.log(`[RealDataEnrichment] Starting real data enrichment for: ${lead.institutionName}`);
+
+  const searchPromises = queries.map(async (query) => {
+    try {
+      const results = await searchTavily(query);
+      searchResults.set(query, results);
+      console.log(`[RealDataEnrichment] Query "${query.slice(0, 50)}..." returned ${results.length} results`);
+    } catch (error) {
+      console.error(`[RealDataEnrichment] Search failed for query: ${query}`, error);
+      searchResults.set(query, []);
+    }
+  });
+
+  await Promise.all(searchPromises);
+
+  const result = await analyzeRealDataWithClaude(lead, searchResults);
+  
+  console.log(`[RealDataEnrichment] Enrichment complete for ${lead.institutionName} with score: ${result.enrichmentScore}`);
+  
+  return result;
 }

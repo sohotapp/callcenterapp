@@ -13,7 +13,7 @@ import {
   generateEmail,
   type CountyData 
 } from "./county-data";
-import { enrichLead, enrichLeadsBatch } from "./enrichment";
+import { enrichLead, enrichLeadsBatch, enrichLeadWithRealData } from "./enrichment";
 import { calculateLeadScore, scoreAllLeads } from "./scoring";
 import { scrapeRealCountyData } from "./real-data-scraper";
 
@@ -1160,6 +1160,89 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error enriching lead:", error);
       res.status(500).json({ error: "Failed to enrich lead" });
+    }
+  });
+
+  app.post("/api/leads/:id/enrich-real", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      
+      const lead = await storage.getLead(id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const tavilyApiKey = process.env.TAVILY_API_KEY;
+      if (!tavilyApiKey) {
+        return res.status(500).json({ error: "TAVILY_API_KEY not configured. Please add your Tavily API key to enable real-time web research." });
+      }
+
+      console.log(`Starting real data enrichment for lead ${id}: ${lead.institutionName}`);
+      
+      const enrichmentResult = await enrichLeadWithRealData(lead);
+      
+      const existingPainPoints = lead.painPoints || [];
+      const existingDecisionMakers = lead.decisionMakers || [];
+      
+      const mergedPainPoints = [...new Set([...existingPainPoints, ...enrichmentResult.painPoints])];
+      const mergedDecisionMakers = [
+        ...existingDecisionMakers,
+        ...enrichmentResult.decisionMakers.filter(
+          (newDm) => !existingDecisionMakers.some((existing) => existing.name === newDm.name)
+        ),
+      ];
+      
+      const existingTechStack = lead.techStack || [];
+      const mergedTechStack = [...new Set([...existingTechStack, ...enrichmentResult.techStack])];
+      
+      const existingBuyingSignals = lead.buyingSignals || [];
+      const mergedBuyingSignals = [...new Set([...existingBuyingSignals, ...enrichmentResult.buyingSignals])];
+
+      const updatedLead = await storage.updateLeadEnrichment(id, {
+        decisionMakers: mergedDecisionMakers,
+        techStack: mergedTechStack,
+        buyingSignals: mergedBuyingSignals,
+        enrichmentData: {
+          ...(lead.enrichmentData || {}),
+          realDataEnrichment: {
+            recentNews: enrichmentResult.recentNews,
+            searchQueries: enrichmentResult.searchQueries,
+            totalResultsFound: enrichmentResult.totalResultsFound,
+            enrichedAt: enrichmentResult.enrichedAt.toISOString(),
+          },
+        },
+        enrichmentScore: Math.max(enrichmentResult.enrichmentScore, lead.enrichmentScore || 0),
+      });
+
+      await storage.updateLead(id, {
+        painPoints: mergedPainPoints,
+      });
+
+      const finalLead = await storage.getLead(id);
+
+      res.json({
+        lead: finalLead,
+        enrichmentDetails: {
+          recentNews: enrichmentResult.recentNews,
+          techStack: enrichmentResult.techStack,
+          painPoints: enrichmentResult.painPoints,
+          buyingSignals: enrichmentResult.buyingSignals,
+          decisionMakers: enrichmentResult.decisionMakers,
+          enrichmentScore: enrichmentResult.enrichmentScore,
+          searchQueries: enrichmentResult.searchQueries,
+          totalResultsFound: enrichmentResult.totalResultsFound,
+        },
+        status: "completed",
+      });
+    } catch (error) {
+      console.error("Error in real data enrichment:", error);
+      res.status(500).json({ 
+        error: "Failed to enrich lead with real data",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

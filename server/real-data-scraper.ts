@@ -43,6 +43,62 @@ export interface RealContactData {
   }>;
 }
 
+const MAX_CONTENT_PER_RESULT = 2500;
+const MAX_TOTAL_CONTENT = 12000;
+
+function truncateContent(content: string, maxLength: number): string {
+  if (content.length <= maxLength) return content;
+  return content.substring(0, maxLength) + "... [truncated]";
+}
+
+function extractPatternsFromText(text: string): { phones: string[]; emails: string[]; govUrls: string[] } {
+  const phonePattern = /(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}(?:\s*(?:ext|x|extension)\.?\s*[0-9]+)?/gi;
+  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+  const govUrlPattern = /https?:\/\/[^\s"'<>]*\.gov[^\s"'<>]*/gi;
+
+  const phones = Array.from(new Set(text.match(phonePattern) || [])).slice(0, 30);
+  const emails = Array.from(new Set(text.match(emailPattern) || [])).slice(0, 30);
+  const govUrls = Array.from(new Set(text.match(govUrlPattern) || [])).slice(0, 10);
+
+  return { phones, emails, govUrls };
+}
+
+function prepareSearchResultsForClaude(results: TavilyResult[]): { content: string; preExtracted: { phones: string[]; emails: string[]; govUrls: string[] } } {
+  const allPhones: string[] = [];
+  const allEmails: string[] = [];
+  const allGovUrls: string[] = [];
+  
+  let totalLength = 0;
+  const truncatedResults: string[] = [];
+  
+  for (const r of results) {
+    if (totalLength >= MAX_TOTAL_CONTENT) break;
+    
+    const rawText = r.raw_content || r.content || "";
+    const patterns = extractPatternsFromText(rawText);
+    allPhones.push(...patterns.phones);
+    allEmails.push(...patterns.emails);
+    allGovUrls.push(...patterns.govUrls);
+    
+    const truncatedText = truncateContent(rawText, MAX_CONTENT_PER_RESULT);
+    const resultBlock = `URL: ${r.url}\nTitle: ${r.title}\nContent: ${truncatedText}\n---`;
+    
+    if (totalLength + resultBlock.length <= MAX_TOTAL_CONTENT) {
+      truncatedResults.push(resultBlock);
+      totalLength += resultBlock.length;
+    }
+  }
+  
+  return {
+    content: truncatedResults.join("\n"),
+    preExtracted: {
+      phones: Array.from(new Set(allPhones)).slice(0, 50),
+      emails: Array.from(new Set(allEmails)).slice(0, 50),
+      govUrls: Array.from(new Set(allGovUrls)).slice(0, 15),
+    },
+  };
+}
+
 async function searchTavily(query: string): Promise<TavilyResult[]> {
   const tavilyApiKey = process.env.TAVILY_API_KEY;
   if (!tavilyApiKey) {
@@ -106,20 +162,23 @@ async function extractContactDataWithClaude(
     };
   }
 
-  const combinedContent = searchResults
-    .map((r) => `
-URL: ${r.url}
-Title: ${r.title}
-Content: ${r.raw_content || r.content}
----`)
-    .join("\n");
+  const { content: combinedContent, preExtracted } = prepareSearchResultsForClaude(searchResults);
+  
+  console.log(`[RealDataScraper] Prepared content for Claude: ${combinedContent.length} chars, pre-extracted: ${preExtracted.phones.length} phones, ${preExtracted.emails.length} emails`);
+
+  const preExtractedSection = `
+PRE-EXTRACTED CONTACT PATTERNS (use these to match with names):
+Phones found: ${preExtracted.phones.slice(0, 20).join(", ")}
+Emails found: ${preExtracted.emails.slice(0, 20).join(", ")}
+Gov URLs found: ${preExtracted.govUrls.slice(0, 5).join(", ")}
+`;
 
   const prompt = `You are extracting REAL contact information from government website search results. Your PRIMARY GOAL is to find DIRECT PHONE NUMBERS and EMAIL ADDRESSES for INDIVIDUAL PEOPLE, not just general office numbers.
 
 COUNTY: ${countyName} County
 STATE: ${state}
 DEPARTMENT: ${department}
-
+${preExtractedSection}
 SEARCH RESULTS:
 ${combinedContent}
 

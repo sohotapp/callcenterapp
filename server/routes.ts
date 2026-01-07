@@ -29,6 +29,7 @@ import { enrichLead, enrichLeadsBatch, enrichLeadWithRealData } from "./enrichme
 import { calculateLeadScore, scoreAllLeads } from "./scoring";
 import { scrapeRealCountyData } from "./real-data-scraper";
 import { queueAutoScrapeForIcp, findMatchingLeadTargets } from "./icp-scraper";
+import { generateIcpSuggestions } from "./icp-ai";
 
 // Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
 let anthropicClient: Anthropic | null = null;
@@ -1128,6 +1129,33 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error counting matching leads:", error);
       res.status(500).json({ error: "Failed to count matching leads" });
+    }
+  });
+
+  app.post("/api/icp/:id/ai-suggest", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+
+      const companyProfile = await storage.getCompanyProfile();
+      const companyContext = companyProfile 
+        ? `${companyProfile.name} - ${companyProfile.description}. Services: ${(companyProfile.services || []).join(", ")}`
+        : undefined;
+
+      console.log(`Generating AI suggestions for ICP: ${profile.displayName}`);
+      const suggestions = await generateIcpSuggestions(profile, companyContext);
+      
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error generating ICP suggestions:", error);
+      res.status(500).json({ error: "Failed to generate AI suggestions" });
     }
   });
 

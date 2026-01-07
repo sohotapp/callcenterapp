@@ -12,6 +12,7 @@ import {
   Save,
   Users,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,13 @@ const verticalColors: Record<string, string> = {
   pe: "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300",
 };
 
+interface AiSuggestion {
+  description: string;
+  targetCriteria: TargetCriteria;
+  searchQueries: string[];
+  rationale: string;
+}
+
 interface IcpCardProps {
   profile: IcpProfile;
   matchingCount: number;
@@ -59,6 +67,33 @@ function IcpCard({ profile, matchingCount, onUpdate, isPending }: IcpCardProps) 
     (profile.searchQueries || []).join("\n")
   );
   const [hasChanges, setHasChanges] = useState(false);
+  const [aiRationale, setAiRationale] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const aiSuggestMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/icp/${profile.id}/ai-suggest`);
+      return response as unknown as AiSuggestion;
+    },
+    onSuccess: (suggestion) => {
+      setEditedDescription(suggestion.description);
+      setEditedCriteria(suggestion.targetCriteria);
+      setEditedQueries(suggestion.searchQueries.join("\n"));
+      setAiRationale(suggestion.rationale);
+      setHasChanges(true);
+      toast({
+        title: "AI Suggestions Applied",
+        description: "Review the suggested criteria and save to apply changes.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "AI Suggestion Failed",
+        description: "Failed to generate suggestions. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const Icon = verticalIcons[profile.verticalName] || Target;
   const colorClass = verticalColors[profile.verticalName] || "bg-muted text-muted-foreground";
@@ -289,7 +324,32 @@ function IcpCard({ profile, matchingCount, onUpdate, isPending }: IcpCardProps) 
               />
             </div>
 
-            <div className="flex justify-end">
+            {aiRationale && (
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-md">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <div>
+                    <span className="text-xs font-medium text-primary">AI Rationale</span>
+                    <p className="text-sm text-muted-foreground mt-1">{aiRationale}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between gap-2">
+              <Button
+                variant="outline"
+                onClick={() => aiSuggestMutation.mutate()}
+                disabled={aiSuggestMutation.isPending}
+                data-testid={`button-ai-suggest-${profile.id}`}
+              >
+                {aiSuggestMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 mr-2" />
+                )}
+                {aiSuggestMutation.isPending ? "Generating..." : "AI Suggest"}
+              </Button>
               <Button
                 onClick={handleSave}
                 disabled={!hasChanges || isPending}

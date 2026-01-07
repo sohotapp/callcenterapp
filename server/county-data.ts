@@ -463,31 +463,6 @@ export function getCountiesByState(stateNames: string[]): CountyData[] {
   });
 }
 
-export function generatePhoneNumber(areaCodes: number[]): string {
-  const areaCode = areaCodes[Math.floor(Math.random() * areaCodes.length)];
-  const exchange = Math.floor(Math.random() * 800) + 200;
-  const subscriber = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `(${areaCode}) ${exchange}-${subscriber}`;
-}
-
-export function generateWebsite(countyName: string, stateAbbr: string): string {
-  const cleanName = countyName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const formats = [
-    `https://www.${cleanName}county.gov`,
-    `https://www.${cleanName}county${stateAbbr.toLowerCase()}.gov`,
-    `https://${cleanName}.${stateAbbr.toLowerCase()}.gov`,
-    `https://www.co.${cleanName}.${stateAbbr.toLowerCase()}.us`,
-  ];
-  return formats[Math.floor(Math.random() * formats.length)];
-}
-
-export function generateEmail(department: string, countyName: string): string {
-  const cleanDept = department.toLowerCase().replace(/[^a-z]/g, '').slice(0, 12);
-  const cleanName = countyName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const formats = [
-    `${cleanDept}@${cleanName}county.gov`,
-    `${cleanDept}@${cleanName}.gov`,
-    `info.${cleanDept}@${cleanName}county.gov`,
-  ];
-  return formats[Math.floor(Math.random() * formats.length)];
-}
+// NOTE: Fake data generators have been removed.
+// All contact data must come from real sources via Tavily API + Claude.
+// See server/real-data-scraper.ts for the real data extraction implementation.

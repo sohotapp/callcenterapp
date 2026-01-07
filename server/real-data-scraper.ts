@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 import type { CountyData } from "./county-data";
+import { validateEmail } from "./email-validator";
 
 let anthropicClient: Anthropic | null = null;
 
@@ -198,6 +199,54 @@ Respond ONLY with valid JSON in this exact format:
   };
 }
 
+async function validateAndFilterEmails(
+  contactData: RealContactData,
+  countyName: string
+): Promise<RealContactData> {
+  const validatedData = { ...contactData };
+
+  if (validatedData.email) {
+    const result = await validateEmail(validatedData.email);
+    console.log(`[RealDataScraper] Email validation for ${countyName} (${validatedData.email}):`, {
+      isValid: result.isValid,
+      formatValid: result.formatValid,
+      domainValid: result.domainValid,
+      mxRecords: result.mxRecords.slice(0, 2),
+      reason: result.reason,
+    });
+
+    if (!result.isValid) {
+      console.log(`[RealDataScraper] Invalid email discarded for ${countyName}: ${validatedData.email} - ${result.reason}`);
+      validatedData.email = null;
+    }
+  }
+
+  if (validatedData.additionalContacts.length > 0) {
+    const validatedContacts = await Promise.all(
+      validatedData.additionalContacts.map(async (contact) => {
+        if (contact.email) {
+          const result = await validateEmail(contact.email);
+          console.log(`[RealDataScraper] Additional contact email validation (${contact.name}):`, {
+            email: contact.email,
+            isValid: result.isValid,
+            reason: result.reason,
+          });
+
+          if (!result.isValid) {
+            console.log(`[RealDataScraper] Invalid additional contact email discarded: ${contact.email}`);
+            return { ...contact, email: undefined };
+          }
+        }
+        return contact;
+      })
+    );
+
+    validatedData.additionalContacts = validatedContacts;
+  }
+
+  return validatedData;
+}
+
 export async function scrapeRealCountyData(
   county: CountyData,
   department: string
@@ -256,7 +305,18 @@ export async function scrapeRealCountyData(
     additionalContactsCount: contactData.additionalContacts.length,
   });
 
-  return contactData;
+  const validatedContactData = await validateAndFilterEmails(contactData, countyName);
+
+  console.log(`[RealDataScraper] Validated data for ${countyName} County:`, {
+    hasPhone: !!validatedContactData.phoneNumber,
+    hasEmail: !!validatedContactData.email,
+    hasWebsite: !!validatedContactData.website,
+    hasDecisionMaker: !!validatedContactData.decisionMakerName,
+    additionalContactsCount: validatedContactData.additionalContacts.length,
+    validContactEmails: validatedContactData.additionalContacts.filter(c => c.email).length,
+  });
+
+  return validatedContactData;
 }
 
 export async function scrapeRealCountyDataBatch(

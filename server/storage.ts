@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import {
   users,
   governmentLeads,
@@ -25,6 +25,7 @@ import {
   type DecisionMaker,
   type RecentNews,
   type CompetitorAnalysis,
+  type ScriptStyle,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -50,7 +51,8 @@ export interface IStorage {
   updateLeadEnrichment(id: number, enrichment: LeadEnrichmentData): Promise<GovernmentLead | undefined>;
   deleteLead(id: number): Promise<boolean>;
 
-  getScriptByLeadId(leadId: number): Promise<CallScript | undefined>;
+  getScriptByLeadId(leadId: number, scriptStyle?: ScriptStyle): Promise<CallScript | undefined>;
+  getScriptsByLeadId(leadId: number): Promise<CallScript[]>;
   createScript(script: InsertCallScript): Promise<CallScript>;
   getAllScripts(): Promise<CallScript[]>;
 
@@ -135,13 +137,25 @@ export class DatabaseStorage implements IStorage {
     return lead;
   }
 
-  async getScriptByLeadId(leadId: number): Promise<CallScript | undefined> {
-    const [script] = await db.select().from(callScripts).where(eq(callScripts.leadId, leadId));
+  async getScriptByLeadId(leadId: number, scriptStyle?: ScriptStyle): Promise<CallScript | undefined> {
+    if (scriptStyle) {
+      const [script] = await db.select().from(callScripts).where(
+        and(eq(callScripts.leadId, leadId), eq(callScripts.scriptStyle, scriptStyle))
+      );
+      return script;
+    }
+    const [script] = await db.select().from(callScripts).where(eq(callScripts.leadId, leadId)).orderBy(desc(callScripts.generatedAt)).limit(1);
     return script;
   }
 
+  async getScriptsByLeadId(leadId: number): Promise<CallScript[]> {
+    return db.select().from(callScripts).where(eq(callScripts.leadId, leadId)).orderBy(desc(callScripts.generatedAt));
+  }
+
   async createScript(insertScript: InsertCallScript): Promise<CallScript> {
-    await db.delete(callScripts).where(eq(callScripts.leadId, insertScript.leadId));
+    await db.delete(callScripts).where(
+      and(eq(callScripts.leadId, insertScript.leadId), eq(callScripts.scriptStyle, insertScript.scriptStyle))
+    );
     const [script] = await db.insert(callScripts).values(insertScript).returning();
     return script;
   }

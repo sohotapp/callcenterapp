@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { insertGovernmentLeadSchema, insertScrapeJobSchema, insertIcpProfileSchema, targetCriteriaSchema } from "@shared/schema";
+import { insertGovernmentLeadSchema, insertScrapeJobSchema, insertIcpProfileSchema, targetCriteriaSchema, scriptStyles, type ScriptStyle } from "@shared/schema";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 import { 
@@ -262,7 +262,8 @@ export async function registerRoutes(
       if (isNaN(leadId)) {
         return res.status(400).json({ error: "Invalid lead ID" });
       }
-      const script = await storage.getScriptByLeadId(leadId);
+      const scriptStyle = req.query.style as ScriptStyle | undefined;
+      const script = await storage.getScriptByLeadId(leadId, scriptStyle);
       if (!script) {
         return res.status(404).json({ error: "Script not found" });
       }
@@ -271,6 +272,24 @@ export async function registerRoutes(
       console.error("Error fetching script:", error);
       res.status(500).json({ error: "Failed to fetch script" });
     }
+  });
+
+  app.get("/api/leads/:id/scripts", async (req: Request, res: Response) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      if (isNaN(leadId)) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
+      const scripts = await storage.getScriptsByLeadId(leadId);
+      res.json(scripts);
+    } catch (error) {
+      console.error("Error fetching scripts:", error);
+      res.status(500).json({ error: "Failed to fetch scripts" });
+    }
+  });
+
+  const generateScriptSchema = z.object({
+    scriptStyle: z.enum(scriptStyles).default("consultative"),
   });
 
   app.post("/api/leads/:id/generate-script", async (req: Request, res: Response) => {
@@ -284,48 +303,134 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Lead not found" });
       }
 
+      const parseResult = generateScriptSchema.safeParse(req.body);
+      const scriptStyle: ScriptStyle = parseResult.success ? parseResult.data.scriptStyle : "consultative";
+
       const companyProfile = await storage.getCompanyProfile();
 
-      const prompt = `You are a sales script expert for rltx.ai, a company that builds custom AI software systems for government organizations. Generate a compelling cold-call script for the following government lead.
+      const companyContext = companyProfile ? `COMPANY INFORMATION (rltx.ai - "Palantir for AI"):
+- Company: ${companyProfile.companyName}
+- Tagline: ${companyProfile.tagline || "Palantir for AI - End-to-end custom AI systems"}
+- Description: ${companyProfile.description || "We build end-to-end custom AI systems that transform government operations"}
+- Services: ${companyProfile.services?.join(", ") || "Custom AI Development, RAG Systems, AI Agents, Enterprise AI Platforms"}
+- Capabilities: ${companyProfile.capabilities?.join(", ") || "End-to-end AI development, Legacy system integration, Custom LLM solutions"}
+- Price Range: ${companyProfile.priceRange || "$10,000 - $500,000"}
+- Target Markets: ${companyProfile.targetMarkets?.join(", ") || "Government, Enterprise"}
+- Unique Selling Points: ${companyProfile.uniqueSellingPoints?.join(", ") || "Full-service AI development, Government-focused expertise"}
+- Competitive Advantages: ${companyProfile.competitiveAdvantages?.join(", ") || "End-to-end delivery, Compliance-first approach"}` 
+      : `COMPANY INFORMATION (rltx.ai - "Palantir for AI"):
+- Company: rltx.ai
+- Tagline: Palantir for AI - End-to-end custom AI systems for any need
+- Services: Custom AI Development, RAG Systems, AI Agents, Intelligent Document Processing, Enterprise AI Platforms
+- Price Range: $10,000 - $500,000
+- Target Markets: Government and enterprise organizations seeking custom AI solutions
+- Value: Custom AI solutions that integrate with legacy systems, automate workflows, and improve citizen services`;
 
-LEAD INFORMATION:
+      const enrichmentContext = `LEAD ENRICHMENT DATA:
+${lead.decisionMakers && lead.decisionMakers.length > 0 ? `- Decision Makers: ${lead.decisionMakers.map(dm => `${dm.name} (${dm.title})`).join(", ")}` : "- Decision Makers: Unknown"}
+${lead.painPoints && lead.painPoints.length > 0 ? `- Known Pain Points: ${lead.painPoints.join(", ")}` : "- Pain Points: To be discovered"}
+${lead.techStack && lead.techStack.length > 0 ? `- Current Tech Stack: ${lead.techStack.join(", ")}` : "- Tech Stack: Unknown"}
+${lead.buyingSignals && lead.buyingSignals.length > 0 ? `- Buying Signals: ${lead.buyingSignals.join(", ")}` : "- Buying Signals: None identified"}
+${lead.recentNews && lead.recentNews.length > 0 ? `- Recent News: ${lead.recentNews.map(n => n.title).join("; ")}` : ""}`;
+
+      const leadContext = `LEAD INFORMATION:
 - Institution: ${lead.institutionName}
 - Type: ${lead.institutionType}
 - Department: ${lead.department || "General Administration"}
 - State: ${lead.state}
 - County: ${lead.county || "N/A"}
+- City: ${lead.city || "N/A"}
 - Population Served: ${lead.population?.toLocaleString() || "Unknown"}
 - Annual Budget: ${lead.annualBudget || "Unknown"}
 - Tech Maturity Score: ${lead.techMaturityScore || "Unknown"}/10
+- Current Status: ${lead.status}
 
-${companyProfile ? `COMPANY INFORMATION:
-- Company: ${companyProfile.companyName}
-- Value Proposition: ${companyProfile.valueProposition}
-- Services: ${companyProfile.services?.join(", ") || "Custom AI Solutions"}
-- Price Range: ${companyProfile.priceRange}
-- Target Market: ${companyProfile.targetMarket}
-` : `COMPANY INFORMATION:
-- Company: rltx.ai
-- Services: Custom AI software, RAG systems, end-to-end AI solutions
-- Price Range: $10,000 - $500,000
-- Target Market: Government and enterprise organizations
-`}
+${enrichmentContext}`;
 
-Generate a JSON response with the following structure:
+      const stylePrompts: Record<ScriptStyle, string> = {
+        consultative: `SCRIPT STYLE: CONSULTATIVE
+This script should position you as a trusted advisor/partner, NOT a salesperson.
+
+KEY CHARACTERISTICS:
+- Open with an insight about their specific situation that shows you've done research
+- Ask discovery questions to understand their unique challenges
+- Listen-first approach - let them share before pitching
+- Position solutions as recommendations based on their needs
+- Focus on building trust and long-term relationship
+
+TONE: Thoughtful, curious, collaborative, expert-but-humble`,
+
+        direct_value: `SCRIPT STYLE: DIRECT VALUE PROPOSITION
+This script should lead with immediate, quantifiable value. No fluff, get to the point fast.
+
+KEY CHARACTERISTICS:
+- Open with an immediate value statement backed by numbers
+- Quantified benefits upfront (time saved, cost reduction, efficiency gains)
+- Clear ROI messaging within the first 30 seconds
+- Respect their time - busy government officials appreciate directness
+- Focus on speed, clarity, and concrete outcomes
+
+TONE: Confident, direct, data-driven, respectful of their time`,
+
+        question_led: `SCRIPT STYLE: QUESTION-LED (SOCRATIC METHOD)
+This script should use strategic questions to guide the prospect to self-diagnose their problems.
+
+KEY CHARACTERISTICS:
+- Open with a thought-provoking question that highlights a common challenge
+- Use the Socratic method to guide discovery
+- Let the prospect articulate their own pain points
+- Each question should build on the previous answer
+- They should conclude they need a solution before you pitch one
+- Focus on engagement, buy-in, and self-discovery
+
+TONE: Curious, engaging, strategic, patient`,
+
+        pain_agitate_solution: `SCRIPT STYLE: PAIN-AGITATE-SOLUTION (PAS)
+This script should identify pain, amplify the consequences, then present relief.
+
+KEY CHARACTERISTICS:
+- Open by naming a specific pain point they likely experience
+- Agitate - vividly describe the consequences of inaction (wasted time, frustrated citizens, budget overruns)
+- Let them feel the weight of the problem
+- Present the solution as relief from that pain
+- Focus on emotional resonance and urgency
+
+TONE: Empathetic but urgent, understanding the struggle, offering hope`,
+      };
+
+      const prompt = `You are an expert cold-call script writer for rltx.ai. Generate a compelling cold-call script using the specified style.
+
+${companyContext}
+
+${leadContext}
+
+${stylePrompts[scriptStyle]}
+
+Generate a JSON response with EXACTLY this structure:
 {
-  "openingStatement": "A friendly, professional opening that introduces yourself and establishes relevance",
-  "painPointMatch": "Identify 2-3 specific pain points this government entity likely faces based on their type/department",
-  "solutionPitch": "How rltx.ai's custom AI solutions can address their specific pain points",
-  "objectionHandlers": ["Response to budget concerns", "Response to 'we already have a system'", "Response to 'we need to go through procurement'"],
-  "closingStatement": "A clear call-to-action for next steps",
-  "painPoints": ["Pain point 1", "Pain point 2", "Pain point 3"]
+  "opener": "The opening line/paragraph of the call - tailored to the script style",
+  "talkingPoints": ["Key point 1 to cover", "Key point 2 to cover", "Key point 3 to cover", "Key point 4 to cover", "Key point 5 to cover"],
+  "valueProposition": "The core value proposition statement - what makes rltx.ai valuable for THIS specific lead",
+  "objectionHandlers": [
+    {"objection": "Budget constraints", "response": "Tailored response to budget concerns"},
+    {"objection": "Already have a system", "response": "Response about integration and enhancement"},
+    {"objection": "Need to go through procurement", "response": "Response about procurement experience"},
+    {"objection": "Not a priority right now", "response": "Response about timing and quick wins"}
+  ],
+  "closingStatement": "A clear, style-appropriate call-to-action for next steps",
+  "fullScript": "The complete script written out as you would speak it, with clear sections and natural flow"
 }
 
-Be specific to their government type and department. Reference real challenges governments face like legacy systems, manual processes, citizen service improvements, data silos, and compliance requirements.`;
+IMPORTANT:
+- Make the script specific to ${lead.institutionName} and their context
+- Reference their department (${lead.department || "administration"}), state (${lead.state}), and situation
+- If there are known pain points or decision makers, incorporate them naturally
+- The fullScript should be a complete, ready-to-use cold call script of 300-500 words
+- Keep the style consistent throughout - ${scriptStyle} approach`;
 
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
-        max_tokens: 8192,
+        max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -345,47 +450,36 @@ Be specific to their government type and department. Reference real challenges g
       } catch (parseError) {
         console.error("Failed to parse AI response:", content.text);
         scriptData = {
-          openingStatement: `Hi, this is calling from rltx.ai. I'm reaching out because we specialize in building custom AI solutions for government organizations like ${lead.institutionName}. Do you have a few minutes to discuss how we might help streamline your operations?`,
-          painPointMatch: `Based on my research, many ${lead.institutionType} organizations face challenges with legacy systems, manual data entry, and citizen service response times. Is that something you're experiencing at ${lead.institutionName}?`,
-          solutionPitch: `We've helped government organizations implement AI-powered solutions that automate routine tasks, improve data accessibility, and enhance citizen services - typically seeing 40-60% efficiency improvements. Our solutions range from $10K for focused projects to $500K for comprehensive enterprise systems.`,
-          objectionHandlers: [
-            "I completely understand budget constraints. Many of our government clients start with a smaller pilot project to demonstrate ROI before committing to larger implementations.",
-            "That's great that you have existing systems. Our solutions are designed to integrate with and enhance your current infrastructure, not replace everything.",
-            "We're very familiar with government procurement processes. We can provide all the documentation needed for RFP responses and are registered in most state vendor systems."
+          opener: `Hi, this is calling from rltx.ai. I'm reaching out because we specialize in building custom AI solutions for government organizations like ${lead.institutionName}.`,
+          talkingPoints: [
+            "Legacy system modernization challenges",
+            "Manual process automation opportunities",
+            "Citizen service improvement potential",
+            "Data integration across departments",
+            "Compliance and security requirements"
           ],
-          closingStatement: "Would you be open to a brief 15-minute call next week where I could show you a case study of similar work we've done? I think you'd find it relevant to what you're trying to accomplish.",
-          painPoints: ["Legacy system integration", "Manual data processing", "Citizen service efficiency"]
+          valueProposition: `rltx.ai helps government organizations like ${lead.institutionName} transform operations with custom AI solutions - from document processing to citizen services - typically seeing 40-60% efficiency improvements.`,
+          objectionHandlers: [
+            { objection: "Budget constraints", response: "Many of our government clients start with a smaller pilot project to demonstrate ROI before committing to larger implementations." },
+            { objection: "Already have a system", response: "Our solutions are designed to integrate with and enhance your current infrastructure, not replace everything." },
+            { objection: "Need to go through procurement", response: "We're very familiar with government procurement processes and can provide all documentation needed for RFP responses." },
+            { objection: "Not a priority right now", response: "I understand. Many organizations find that a quick assessment helps them plan for when the timing is right. Would a brief overview be helpful?" }
+          ],
+          closingStatement: "Would you be open to a brief 15-minute call next week where I could show you a case study of similar work we've done?",
+          fullScript: `Hi, this is calling from rltx.ai. I'm reaching out because we specialize in building custom AI solutions for government organizations like ${lead.institutionName}. Do you have a few minutes to discuss how we might help streamline your operations?\n\nBased on my research, many ${lead.institutionType} organizations face challenges with legacy systems, manual data entry, and citizen service response times. Is that something you're experiencing?\n\nWe've helped government organizations implement AI-powered solutions that automate routine tasks, improve data accessibility, and enhance citizen services. Our solutions range from $10K for focused projects to $500K for comprehensive enterprise systems.\n\nWould you be open to a brief 15-minute call next week where I could show you a case study of similar work we've done?`
         };
       }
 
-      const fullScript = `OPENING:
-${scriptData.openingStatement}
-
-PAIN POINT DISCOVERY:
-${scriptData.painPointMatch}
-
-SOLUTION PITCH:
-${scriptData.solutionPitch}
-
-OBJECTION HANDLERS:
-${scriptData.objectionHandlers.map((h: string, i: number) => `${i + 1}. ${h}`).join("\n")}
-
-CLOSE:
-${scriptData.closingStatement}`;
-
       const script = await storage.createScript({
         leadId,
-        openingStatement: scriptData.openingStatement,
-        painPointMatch: scriptData.painPointMatch,
-        solutionPitch: scriptData.solutionPitch,
-        objectionHandlers: scriptData.objectionHandlers,
+        scriptStyle,
+        opener: scriptData.opener,
+        talkingPoints: scriptData.talkingPoints || [],
+        valueProposition: scriptData.valueProposition,
+        objectionHandlers: scriptData.objectionHandlers || [],
         closingStatement: scriptData.closingStatement,
-        fullScript,
+        fullScript: scriptData.fullScript,
       });
-
-      if (scriptData.painPoints && scriptData.painPoints.length > 0) {
-        await storage.updateLead(leadId, { painPoints: scriptData.painPoints });
-      }
 
       res.json(script);
     } catch (error) {

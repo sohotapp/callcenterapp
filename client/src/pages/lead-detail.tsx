@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
+import { useState } from "react";
 import {
   ArrowLeft,
   Phone,
@@ -25,6 +26,12 @@ import {
   User,
   Linkedin,
   Target,
+  MessageCircle,
+  Zap,
+  HelpCircle,
+  Flame,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,8 +41,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis } from "@shared/schema";
+import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   not_contacted: "bg-muted text-muted-foreground",
@@ -53,6 +61,33 @@ const statusLabels: Record<string, string> = {
   qualified: "Qualified",
   closed_won: "Won",
   closed_lost: "Lost",
+};
+
+const scriptStyleConfig: Record<ScriptStyle, { label: string; icon: typeof MessageCircle; description: string; color: string }> = {
+  consultative: {
+    label: "Consultative",
+    icon: MessageCircle,
+    description: "Advisor approach, discovery-focused",
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  },
+  direct_value: {
+    label: "Direct Value",
+    icon: Zap,
+    description: "Lead with ROI and quantified benefits",
+    color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  },
+  question_led: {
+    label: "Question-Led",
+    icon: HelpCircle,
+    description: "Socratic method, self-discovery",
+    color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  },
+  pain_agitate_solution: {
+    label: "PAS",
+    icon: Flame,
+    description: "Pain-Agitate-Solution framework",
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  },
 };
 
 function InfoItem({
@@ -80,61 +115,35 @@ function InfoItem({
   );
 }
 
-function ScriptSection({
-  title,
-  content,
-  onCopy,
-}: {
-  title: string;
-  content: string;
-  onCopy: () => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-medium text-muted-foreground">{title}</h4>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onCopy}
-          className="h-7 px-2"
-          data-testid={`button-copy-${title.toLowerCase().replace(/\s+/g, "-")}`}
-        >
-          <Copy className="h-3 w-3 mr-1" />
-          Copy
-        </Button>
-      </div>
-      <p className="text-sm leading-relaxed bg-muted/50 rounded-md p-3">
-        {content}
-      </p>
-    </div>
-  );
-}
-
 export default function LeadDetail() {
   const params = useParams<{ id: string }>();
   const leadId = parseInt(params.id ?? "0");
   const { toast } = useToast();
+  const [selectedStyle, setSelectedStyle] = useState<ScriptStyle>("consultative");
+  const [expandedObjections, setExpandedObjections] = useState<number[]>([]);
 
   const { data: lead, isLoading: leadLoading } = useQuery<GovernmentLead>({
     queryKey: ["/api/leads", leadId],
     enabled: leadId > 0,
   });
 
-  const { data: script, isLoading: scriptLoading } = useQuery<CallScript>({
-    queryKey: ["/api/leads", leadId, "script"],
+  const { data: allScripts, isLoading: scriptsLoading } = useQuery<CallScript[]>({
+    queryKey: ["/api/leads", leadId, "scripts"],
     enabled: leadId > 0,
   });
 
+  const currentScript = allScripts?.find(s => s.scriptStyle === selectedStyle);
+
   const generateScriptMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", `/api/leads/${leadId}/generate-script`);
+    mutationFn: async (style: ScriptStyle) => {
+      return apiRequest("POST", `/api/leads/${leadId}/generate-script`, { scriptStyle: style });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "script"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId, "scripts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scripts"] });
       toast({
         title: "Script Generated",
-        description: "A new call script has been created for this lead.",
+        description: `A new ${scriptStyleConfig[selectedStyle].label} script has been created.`,
       });
     },
     onError: () => {
@@ -189,6 +198,12 @@ export default function LeadDetail() {
     });
   };
 
+  const toggleObjection = (index: number) => {
+    setExpandedObjections(prev =>
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
+
   if (leadLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -235,11 +250,11 @@ export default function LeadDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-muted-foreground">
             <span className="capitalize">{lead.institutionType}</span>
-            <span>•</span>
+            <span>-</span>
             <span>{lead.state}</span>
             {lead.county && (
               <>
-                <span>•</span>
+                <span>-</span>
                 <span>{lead.county} County</span>
               </>
             )}
@@ -256,14 +271,6 @@ export default function LeadDetail() {
               {lead.phoneNumber}
             </Button>
           )}
-          <Button
-            onClick={() => generateScriptMutation.mutate()}
-            disabled={generateScriptMutation.isPending}
-            data-testid="button-generate-script"
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            {generateScriptMutation.isPending ? "Generating..." : "Generate Script"}
-          </Button>
         </div>
       </div>
 
@@ -273,7 +280,7 @@ export default function LeadDetail() {
             <TabsList>
               <TabsTrigger value="script" data-testid="tab-script">
                 <FileText className="h-4 w-4 mr-2" />
-                Call Script
+                Call Scripts
               </TabsTrigger>
               <TabsTrigger value="intelligence" data-testid="tab-intelligence">
                 <Brain className="h-4 w-4 mr-2" />
@@ -287,59 +294,111 @@ export default function LeadDetail() {
 
             <TabsContent value="script" className="mt-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />
-                    Call Script
+                    Call Scripts
                   </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Choose a script style and generate personalized cold-call scripts
+                  </p>
                 </CardHeader>
-                <CardContent>
-                  {scriptLoading ? (
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {(Object.keys(scriptStyleConfig) as ScriptStyle[]).map((style) => {
+                      const config = scriptStyleConfig[style];
+                      const StyleIcon = config.icon;
+                      const hasScript = allScripts?.some(s => s.scriptStyle === style);
+                      return (
+                        <Button
+                          key={style}
+                          variant={selectedStyle === style ? "default" : "outline"}
+                          className={`flex flex-col items-center gap-1 h-auto py-3 ${selectedStyle === style ? "" : ""}`}
+                          onClick={() => setSelectedStyle(style)}
+                          data-testid={`button-style-${style}`}
+                        >
+                          <StyleIcon className="h-4 w-4" />
+                          <span className="text-xs font-medium">{config.label}</span>
+                          {hasScript && (
+                            <CheckCircle2 className="h-3 w-3 text-green-500 absolute top-1 right-1" />
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="bg-muted/50 rounded-md p-3 flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-medium text-sm">{scriptStyleConfig[selectedStyle].label} Style</div>
+                      <div className="text-xs text-muted-foreground">{scriptStyleConfig[selectedStyle].description}</div>
+                    </div>
+                    <Button
+                      onClick={() => generateScriptMutation.mutate(selectedStyle)}
+                      disabled={generateScriptMutation.isPending}
+                      data-testid="button-generate-script"
+                    >
+                      {generateScriptMutation.isPending ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : currentScript ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Regenerate
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {scriptsLoading ? (
                     <div className="space-y-4">
                       <Skeleton className="h-20 w-full" />
                       <Skeleton className="h-20 w-full" />
                       <Skeleton className="h-20 w-full" />
                     </div>
-                  ) : script ? (
+                  ) : currentScript ? (
                     <div className="space-y-6">
-                      <ScriptSection
-                        title="Opening Statement"
-                        content={script.openingStatement}
-                        onCopy={() =>
-                          copyToClipboard(script.openingStatement, "Opening statement")
-                        }
-                      />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-yellow-500" />
+                            Opener
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(currentScript.opener, "Opener")}
+                            data-testid="button-copy-opener"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary rounded-md p-4">
+                          <p className="text-sm leading-relaxed">{currentScript.opener}</p>
+                        </div>
+                      </div>
+
                       <Separator />
-                      <ScriptSection
-                        title="Pain Point Match"
-                        content={script.painPointMatch}
-                        onCopy={() =>
-                          copyToClipboard(script.painPointMatch, "Pain point match")
-                        }
-                      />
-                      <Separator />
-                      <ScriptSection
-                        title="Solution Pitch"
-                        content={script.solutionPitch}
-                        onCopy={() =>
-                          copyToClipboard(script.solutionPitch, "Solution pitch")
-                        }
-                      />
-                      <Separator />
-                      {script.objectionHandlers && script.objectionHandlers.length > 0 && (
+
+                      {currentScript.talkingPoints && currentScript.talkingPoints.length > 0 && (
                         <>
                           <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-muted-foreground">
-                              Objection Handlers
-                            </h4>
+                            <h4 className="text-sm font-medium">Talking Points</h4>
                             <ul className="space-y-2">
-                              {script.objectionHandlers.map((handler, idx) => (
+                              {currentScript.talkingPoints.map((point, idx) => (
                                 <li
                                   key={idx}
-                                  className="text-sm bg-muted/50 rounded-md p-3 flex items-start gap-2"
+                                  className="flex items-start gap-2 text-sm bg-muted/50 rounded-md p-2"
                                 >
-                                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
-                                  {handler}
+                                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                                  {point}
                                 </li>
                               ))}
                             </ul>
@@ -347,45 +406,140 @@ export default function LeadDetail() {
                           <Separator />
                         </>
                       )}
-                      <ScriptSection
-                        title="Closing Statement"
-                        content={script.closingStatement}
-                        onCopy={() =>
-                          copyToClipboard(script.closingStatement, "Closing statement")
-                        }
-                      />
-                      <div className="pt-4">
-                        <Button
-                          className="w-full"
-                          variant="outline"
-                          onClick={() =>
-                            copyToClipboard(script.fullScript, "Full script")
-                          }
-                          data-testid="button-copy-full-script"
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Full Script
-                        </Button>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Target className="h-4 w-4" />
+                            Value Proposition
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(currentScript.valueProposition, "Value proposition")}
+                            data-testid="button-copy-value-prop"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-4">
+                          <p className="text-sm leading-relaxed">{currentScript.valueProposition}</p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Full Script
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(currentScript.fullScript, "Full script")}
+                            data-testid="button-copy-full-script"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-muted/50 rounded-md p-4">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{currentScript.fullScript}</p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {currentScript.objectionHandlers && (currentScript.objectionHandlers as ObjectionHandler[]).length > 0 && (
+                        <>
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium">Objection Handlers</h4>
+                            <div className="space-y-2">
+                              {(currentScript.objectionHandlers as ObjectionHandler[]).map((handler, idx) => (
+                                <Collapsible
+                                  key={idx}
+                                  open={expandedObjections.includes(idx)}
+                                  onOpenChange={() => toggleObjection(idx)}
+                                >
+                                  <CollapsibleTrigger asChild>
+                                    <div className="flex items-center justify-between gap-2 bg-muted/50 rounded-md p-3 cursor-pointer hover-elevate">
+                                      <div className="flex items-center gap-2">
+                                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                                        <span className="text-sm font-medium">{handler.objection}</span>
+                                      </div>
+                                      {expandedObjections.includes(idx) ? (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    <div className="mt-2 ml-6 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border-l-2 border-green-500">
+                                      <p className="text-sm">{handler.response}</p>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="mt-2"
+                                        onClick={() => copyToClipboard(handler.response, "Response")}
+                                      >
+                                        <Copy className="h-3 w-3 mr-1" />
+                                        Copy Response
+                                      </Button>
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ))}
+                            </div>
+                          </div>
+                          <Separator />
+                        </>
+                      )}
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4" />
+                            Closing Statement
+                          </h4>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => copyToClipboard(currentScript.closingStatement, "Closing statement")}
+                            data-testid="button-copy-closing"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-primary/10 rounded-md p-4">
+                          <p className="text-sm leading-relaxed">{currentScript.closingStatement}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Generated: {currentScript.generatedAt ? new Date(currentScript.generatedAt).toLocaleString() : "Unknown"}
                       </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                      <h3 className="text-lg font-medium">No Script Generated</h3>
+                      <h3 className="text-lg font-medium">No {scriptStyleConfig[selectedStyle].label} Script</h3>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                        Generate a personalized cold-call script based on this
-                        government's specific needs and pain points.
+                        Generate a personalized {scriptStyleConfig[selectedStyle].label.toLowerCase()} script for this lead.
                       </p>
                       <Button
                         className="mt-4"
-                        onClick={() => generateScriptMutation.mutate()}
+                        onClick={() => generateScriptMutation.mutate(selectedStyle)}
                         disabled={generateScriptMutation.isPending}
                         data-testid="button-generate-script-empty"
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
-                        {generateScriptMutation.isPending
-                          ? "Generating..."
-                          : "Generate Script"}
+                        {generateScriptMutation.isPending ? "Generating..." : "Generate Script"}
                       </Button>
                     </div>
                   )}
@@ -510,7 +664,7 @@ export default function LeadDetail() {
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <Newspaper className="h-4 w-4" />
-                            Recent News & Initiatives
+                            Recent News
                           </h4>
                           <div className="space-y-3">
                             {(lead.recentNews as RecentNews[]).map((news, idx) => (
@@ -559,7 +713,7 @@ export default function LeadDetail() {
                       <Brain className="h-12 w-12 text-muted-foreground/50 mb-4" />
                       <h3 className="text-lg font-medium">No Intelligence Data</h3>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                        Run lead enrichment to gather decision makers, tech stack, buying signals, and more from public sources.
+                        Run lead enrichment to gather decision makers, tech stack, buying signals, and more.
                       </p>
                       <Button
                         className="mt-4"
@@ -567,7 +721,7 @@ export default function LeadDetail() {
                         disabled={enrichMutation.isPending}
                         data-testid="button-enrich-lead-empty"
                       >
-                        <Brain className="h-4 w-4 mr-2" />
+                        <RefreshCw className={`h-4 w-4 mr-2 ${enrichMutation.isPending ? "animate-spin" : ""}`} />
                         {enrichMutation.isPending ? "Enriching..." : "Enrich Lead"}
                       </Button>
                     </div>
@@ -581,7 +735,7 @@ export default function LeadDetail() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertCircle className="h-5 w-5" />
-                    Identified Pain Points
+                    Pain Points
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -590,19 +744,19 @@ export default function LeadDetail() {
                       {lead.painPoints.map((point, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-3 text-sm bg-muted/50 rounded-md p-3"
+                          className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md"
                         >
-                          <AlertCircle className="h-4 w-4 mt-0.5 text-yellow-500 shrink-0" />
-                          {point}
+                          <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                          <span className="text-sm">{point}</span>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertCircle className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                      <h3 className="text-lg font-medium">No Pain Points Yet</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Pain points will be identified when you generate a script.
+                      <h3 className="text-lg font-medium">No Pain Points Identified</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        Pain points will be identified when you generate a script or enrich the lead.
                       </p>
                     </div>
                   )}
@@ -615,63 +769,87 @@ export default function LeadDetail() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Lead Information</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Lead Details
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <InfoItem icon={Building2} label="Institution" value={lead.institutionName} />
-              <InfoItem icon={Building2} label="Department" value={lead.department} />
-              <InfoItem icon={MapPin} label="Location" value={`${lead.county ? lead.county + ", " : ""}${lead.state}`} />
+              <InfoItem icon={MapPin} label="Location" value={`${lead.city || ""} ${lead.county ? lead.county + " County," : ""} ${lead.state}`} />
               <InfoItem icon={Phone} label="Phone" value={lead.phoneNumber} mono />
               <InfoItem icon={Mail} label="Email" value={lead.email} />
-              {lead.website && (
-                <div className="flex items-start gap-3">
-                  <Globe className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Website
-                    </span>
-                    <a
-                      href={lead.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary hover:underline flex items-center gap-1"
-                    >
-                      {new URL(lead.website).hostname}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              )}
-              <Separator />
+              <InfoItem icon={Globe} label="Website" value={lead.website} />
               <InfoItem icon={Users} label="Population" value={lead.population?.toLocaleString()} />
               <InfoItem icon={DollarSign} label="Annual Budget" value={lead.annualBudget} />
-              <InfoItem icon={Gauge} label="Tech Maturity" value={lead.techMaturityScore ? `${lead.techMaturityScore}/10` : null} />
-              <InfoItem icon={Clock} label="Last Contact" value={lead.lastContactedAt ? new Date(lead.lastContactedAt).toLocaleDateString() : null} />
+              <InfoItem icon={Gauge} label="Tech Maturity" value={lead.techMaturityScore ? `${lead.techMaturityScore}/10` : undefined} />
+              
+              {lead.website && (
+                <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="w-full mt-2" data-testid="button-visit-website">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Visit Website
+                  </Button>
+                </a>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Update Status</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" />
+                Update Status
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(statusLabels).map(([key, label]) => (
-                  <Button
-                    key={key}
-                    variant={lead.status === key ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateStatusMutation.mutate(key)}
-                    disabled={updateStatusMutation.isPending || lead.status === key}
-                    className="justify-start"
-                    data-testid={`button-status-${key}`}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
+            <CardContent className="space-y-2">
+              {["not_contacted", "contacted", "follow_up", "qualified", "closed_won", "closed_lost"].map((status) => (
+                <Button
+                  key={status}
+                  variant={lead.status === status ? "default" : "outline"}
+                  className="w-full justify-start"
+                  onClick={() => updateStatusMutation.mutate(status)}
+                  disabled={updateStatusMutation.isPending}
+                  data-testid={`button-status-${status}`}
+                >
+                  <Badge className={`${statusColors[status]} border-0 mr-2`}>
+                    {statusLabels[status]}
+                  </Badge>
+                </Button>
+              ))}
             </CardContent>
           </Card>
+
+          {allScripts && allScripts.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Generated Scripts
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {allScripts.map((script) => (
+                  <div
+                    key={script.id}
+                    className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedStyle === script.scriptStyle ? "bg-primary/10" : "bg-muted/50 hover-elevate"}`}
+                    onClick={() => setSelectedStyle(script.scriptStyle as ScriptStyle)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const StyleIcon = scriptStyleConfig[script.scriptStyle as ScriptStyle]?.icon || FileText;
+                        return <StyleIcon className="h-4 w-4" />;
+                      })()}
+                      <span className="text-sm">{scriptStyleConfig[script.scriptStyle as ScriptStyle]?.label || script.scriptStyle}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {script.generatedAt ? new Date(script.generatedAt).toLocaleDateString() : ""}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

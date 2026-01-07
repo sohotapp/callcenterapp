@@ -91,16 +91,29 @@ export const insertGovernmentLeadSchema = createInsertSchema(governmentLeads).om
 export type InsertGovernmentLead = z.infer<typeof insertGovernmentLeadSchema>;
 export type GovernmentLead = typeof governmentLeads.$inferSelect;
 
-// Call Script - AI-generated scripts for each lead
+// Script style type
+export const scriptStyles = ["consultative", "direct_value", "question_led", "pain_agitate_solution"] as const;
+export type ScriptStyle = typeof scriptStyles[number];
+
+// Objection handler schema for JSONB storage
+export const objectionHandlerSchema = z.object({
+  objection: z.string(),
+  response: z.string(),
+});
+
+export type ObjectionHandler = z.infer<typeof objectionHandlerSchema>;
+
+// Call Script - AI-generated scripts for each lead with multiple style support
 export const callScripts = pgTable("call_scripts", {
   id: serial("id").primaryKey(),
   leadId: integer("lead_id").notNull().references(() => governmentLeads.id, { onDelete: "cascade" }),
-  openingStatement: text("opening_statement").notNull(),
-  painPointMatch: text("pain_point_match").notNull(),
-  solutionPitch: text("solution_pitch").notNull(),
-  objectionHandlers: text("objection_handlers").array(),
-  closingStatement: text("closing_statement").notNull(),
+  scriptStyle: text("script_style").notNull().default("consultative"),
+  opener: text("opener").notNull(),
+  talkingPoints: text("talking_points").array(),
+  valueProposition: text("value_proposition").notNull(),
   fullScript: text("full_script").notNull(),
+  objectionHandlers: jsonb("objection_handlers").$type<ObjectionHandler[]>(),
+  closingStatement: text("closing_statement").notNull(),
   generatedAt: timestamp("generated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

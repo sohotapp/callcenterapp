@@ -187,6 +187,22 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Health check endpoint for deployment - must respond quickly
+  app.get("/healthz", (req: Request, res: Response) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  // Also handle root health check for deployment platforms
+  app.get("/", (req: Request, res: Response, next) => {
+    // If this is a health check (no accept header for HTML), respond quickly
+    const acceptHeader = req.headers.accept || "";
+    if (!acceptHeader.includes("text/html")) {
+      return res.status(200).json({ status: "ok" });
+    }
+    // Otherwise, let static file serving handle it
+    next();
+  });
+
   app.get("/api/stats", async (req: Request, res: Response) => {
     try {
       const leads = await storage.getAllLeads();

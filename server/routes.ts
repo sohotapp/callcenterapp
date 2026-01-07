@@ -16,10 +16,18 @@ import {
 import { enrichLead, enrichLeadsBatch } from "./enrichment";
 import { calculateLeadScore, scoreAllLeads } from "./scoring";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-});
+// Lazy initialization of Anthropic client to avoid crashes if env vars aren't set
+let anthropicClient: Anthropic | null = null;
+
+function getAnthropicClient(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({
+      apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || "",
+      baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    });
+  }
+  return anthropicClient;
+}
 
 const STATE_ABBREVIATIONS: Record<string, string> = {
   "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
@@ -93,7 +101,7 @@ Respond ONLY with valid JSON in this exact format:
   try {
     const message = await pRetry(
       async () => {
-        return await anthropic.messages.create({
+        return await getAnthropicClient().messages.create({
           model: "claude-sonnet-4-5",
           max_tokens: 500,
           messages: [{ role: "user", content: prompt }],
@@ -456,7 +464,7 @@ IMPORTANT:
 - The fullScript should be a complete, ready-to-use cold call script of 300-500 words
 - Keep the style consistent throughout - ${scriptStyle} approach`;
 
-      const message = await anthropic.messages.create({
+      const message = await getAnthropicClient().messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
@@ -561,7 +569,7 @@ Generate a JSON response with the following structure:
 
 Focus on AI/ML capabilities, RAG systems, custom software development, and enterprise integrations. Make the content compelling for government decision-makers.`;
 
-      const message = await anthropic.messages.create({
+      const message = await getAnthropicClient().messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
@@ -676,7 +684,7 @@ Generate a JSON response with the following structure:
 
 Focus on making the content compelling for enterprise and government decision-makers.`;
 
-      const message = await anthropic.messages.create({
+      const message = await getAnthropicClient().messages.create({
         model: "claude-sonnet-4-5",
         max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],

@@ -1,51 +1,75 @@
-# GovLeads - Hyper-Personalized Cold-Call Intelligence Platform
+# GovLeads - Hyper-Personalized Outbound GTM Platform
 
 ## Overview
-GovLeads is a world-class cold-call intelligence platform that helps rltx.ai ("Palantir for AI") sell custom end-to-end AI systems to local government institutions. It uses Tavily API for real-time web research and Claude 4.5 Sonnet for deep analysis, generating hyper-personalized cold-call scripts in 4 distinct styles.
+GovLeads is a world-class outbound GTM platform (like Apollo/Unify) that helps rltx.ai ("Palantir for AI") sell custom end-to-end AI systems to local government institutions. It uses Tavily API for real-time web research to scrape REAL contact data from actual government websites, and Claude 4.5 Sonnet for deep analysis and script generation.
+
+**Key Differentiator**: All contact information (emails, phone numbers, decision makers) is scraped from REAL government websites - no fake/generated data.
 
 ## Tech Stack
-- **Frontend**: React, Tailwind CSS, Shadcn UI, TanStack Query
+- **Frontend**: React, Tailwind CSS, Shadcn UI, TanStack Query, Recharts
 - **Backend**: Express.js, Node.js
 - **AI**: Claude 4.5 Sonnet (claude-sonnet-4-5) via Replit AI Integrations
-- **Research**: Tavily API for real-time web research
+- **Research**: Tavily API for real-time web research and contact extraction
 - **Database**: PostgreSQL with Drizzle ORM
 - **Routing**: wouter for client-side routing
 
 ## Key Features
 
-### 1. Company Intelligence Layer
+### 1. Real Data Scraping (server/real-data-scraper.ts)
+- Uses Tavily API to search for actual county government websites
+- Claude extracts real emails, phone numbers, websites from search results
+- MX record validation ensures emails are deliverable
+- No fake/generated data - all contact info comes from real sources
+
+### 2. Email Verification (server/email-validator.ts)
+- Format validation with comprehensive email regex
+- MX record lookup using Node's DNS module
+- Only stores emails that can actually receive mail
+- Government domain pattern recognition (@*.gov, @co.*.*.us)
+
+### 3. Company Intelligence Layer
 - Scrape rltx.ai website using Tavily API
 - Store company capabilities, services, case studies
 - Manual editing in Settings page
 - Context for personalized script generation
 
-### 2. ICP Builder (Ideal Customer Profile)
+### 4. ICP Builder with Auto-Scraping (server/icp-scraper.ts)
 - 5 configurable verticals: Government, Healthcare, Legal, Financial Services, PE
 - Target criteria per vertical: population, budget, departments, states
-- Pain point keywords for matching
-- Active/inactive toggle per vertical
+- **Auto-scrape toggle**: Automatically queue scraping jobs when ICP is updated
+- Find matching lead targets based on ICP criteria
 
-### 3. Lead Enrichment Engine
+### 5. Lead Enrichment Engine (server/enrichment.ts)
 Deep research using Tavily API + Claude AI:
-- **Decision Makers**: Names, titles, contact info
+- **Decision Makers**: Names, titles, contact info from real staff directories
 - **Tech Stack**: Current software/systems in use
 - **Recent News**: Initiatives, projects, RFPs
 - **Pain Points**: Real problems from public sources
 - **Buying Signals**: Budget approvals, hiring, tech complaints
 - **Competitor Analysis**: Who else is selling to them
 
-### 4. Script Generation System
+### 6. Email Sequence Builder
+Multi-step email campaigns with:
+- **Sequences**: name, description, status (draft/active/paused)
+- **Steps**: subject, body template, delay days/hours, conditions
+- **Enrollments**: track leads through sequence progression
+- **Template Variables**: {{institutionName}}, {{contactName}}, {{painPoints}}, {{buyingSignals}}, etc.
+
+### 7. Outreach Tracking
+Track all outreach activities:
+- **Activity Types**: email_sent, email_opened, email_replied, call_made, call_answered, linkedin_sent, linkedin_connected
+- **Channels**: email, phone, linkedin
+- **Call Outcomes**: no_answer, voicemail, callback_scheduled, not_interested, interested, meeting_scheduled
+- Auto-updates lead status based on activities
+
+### 8. Script Generation System
 4 distinct cold-call script styles:
 - **Consultative**: Advisor approach, discovery questions, trust-building
 - **Direct Value**: ROI-driven, quantified benefits, speed-focused
 - **Question-Led**: Socratic method, self-discovery, engagement
 - **Pain-Agitate-Solution (PAS)**: Pain identification, agitation, solution as relief
 
-Each script includes:
-- Opener, Talking Points, Value Proposition
-- Full Script, Objection Handlers, Closing Statement
-
-### 5. Lead Scoring
+### 9. Lead Scoring
 Multi-dimensional scoring system:
 - **Likelihood Score** (1-100): Purchase probability
 - **Match Score** (1-100): Service alignment with rltx.ai
@@ -53,35 +77,40 @@ Multi-dimensional scoring system:
 - **Budget Fit Score** (1-100): Budget alignment
 - **Priority Score**: Weighted composite for ranking
 
-### 6. Additional Features
-- Dashboard with stats and top scored leads
-- Lead management with filtering/sorting
-- Web scraping for government data collection
-- CSV/JSON export for CRM integration
+### 10. Analytics Dashboard (client/src/pages/analytics.tsx)
+- **Conversion Funnel**: Total leads → Enriched → Contacted → Responded → Meeting booked → Won
+- **Response Rates by Channel**: Email, Phone, LinkedIn metrics
+- **Performance by ICP**: Lead count, response rate, meetings per ICP
+- **Activity Over Time**: 30-day chart of leads created/contacted
+- **Geographic Breakdown**: Leads and response rates by state
 
 ## Project Structure
 ```
 client/src/
-  ├── pages/           # Page components
+  ├── pages/
   │   ├── dashboard.tsx      # Stats, top leads, lead table
   │   ├── leads.tsx          # All leads with filtering
   │   ├── lead-detail.tsx    # Lead detail with tabs
-  │   ├── icp.tsx            # ICP Builder
+  │   ├── icp.tsx            # ICP Builder with auto-scrape
   │   ├── scripts.tsx        # All generated scripts
   │   ├── scrape.tsx         # Data collection
-  │   └── settings.tsx       # Company profile
-  ├── components/      # Reusable components
-  └── lib/            # Utilities
+  │   ├── settings.tsx       # Company profile
+  │   └── analytics.tsx      # Analytics dashboard
+  ├── components/
+  └── lib/
 
 server/
-  ├── routes.ts       # API endpoints
-  ├── storage.ts      # Database operations
-  ├── enrichment.ts   # Tavily + Claude enrichment
-  ├── scoring.ts      # Lead scoring algorithms
-  └── county-data.ts  # US Census county data
+  ├── routes.ts              # API endpoints
+  ├── storage.ts             # Database operations
+  ├── real-data-scraper.ts   # Tavily + Claude real data extraction
+  ├── email-validator.ts     # MX record validation
+  ├── enrichment.ts          # Lead enrichment with web research
+  ├── icp-scraper.ts         # ICP-triggered auto-scraping
+  ├── scoring.ts             # Lead scoring algorithms
+  └── county-data.ts         # US Census county data
 
 shared/
-  └── schema.ts       # Data models (leads, ICP, scripts, company)
+  └── schema.ts              # Data models (leads, ICP, scripts, sequences, activities)
 ```
 
 ## API Endpoints
@@ -94,11 +123,12 @@ shared/
 - `GET /api/leads` - All leads
 - `GET /api/leads/:id` - Single lead
 - `PATCH /api/leads/:id` - Update lead
+- `PATCH /api/leads/:id/call-outcome` - Update call outcome and log activity
 
 ### Enrichment
 - `POST /api/leads/:id/enrich` - Enrich lead with Tavily + Claude
+- `POST /api/leads/:id/enrich-real` - Enhanced enrichment with real-time web research
 - `POST /api/leads/enrich-batch` - Batch enrich multiple leads
-- `GET /api/leads/:id/enrichment` - Get enrichment details
 
 ### Scripts
 - `POST /api/leads/:id/generate-script` - Generate script (accepts scriptStyle param)
@@ -111,7 +141,36 @@ shared/
 
 ### ICP
 - `GET /api/icp` - All ICP profiles
-- `PUT /api/icp/:id` - Update ICP profile
+- `PUT /api/icp/:id` - Update ICP profile (triggers auto-scrape if enabled)
+- `POST /api/icp/:id/trigger-scrape` - Manually trigger scraping for ICP
+- `GET /api/icp/:id/matching-targets` - Preview matching targets
+
+### Email Sequences
+- `GET /api/sequences` - All sequences
+- `POST /api/sequences` - Create sequence
+- `GET /api/sequences/:id` - Get sequence with steps
+- `PUT /api/sequences/:id` - Update sequence
+- `DELETE /api/sequences/:id` - Delete sequence
+- `POST /api/sequences/:id/steps` - Add step
+- `PUT /api/sequences/:id/steps/:stepId` - Update step
+- `DELETE /api/sequences/:id/steps/:stepId` - Delete step
+- `POST /api/sequences/:id/enroll` - Enroll leads
+- `GET /api/sequences/:id/enrollments` - Get enrollments
+- `POST /api/sequences/:id/render-template` - Render template with lead data
+- `GET /api/template-variables` - Get available template variables
+
+### Outreach Activities
+- `POST /api/activities` - Log new activity
+- `GET /api/activities/stats` - Get activity statistics
+- `GET /api/leads/:id/activities` - Get activities for a lead
+- `GET /api/sequences/:id/activities` - Get activities for a sequence
+
+### Analytics
+- `GET /api/analytics/funnel` - Conversion funnel data
+- `GET /api/analytics/response-rates` - Response rates by channel
+- `GET /api/analytics/by-icp` - Performance by ICP
+- `GET /api/analytics/by-state` - Geographic breakdown
+- `GET /api/analytics/over-time` - Time series data
 
 ### Company Profile
 - `GET /api/company-profile` - Company profile
@@ -120,11 +179,11 @@ shared/
 
 ### Data Collection
 - `GET /api/scrape/jobs` - Scrape job history
-- `POST /api/scrape/start` - Start new scrape
+- `POST /api/scrape/start` - Start new scrape (uses real data extraction)
 - `POST /api/export` - Export leads data
 
 ## Environment Variables
-- `TAVILY_API_KEY` - Required for web research enrichment
+- `TAVILY_API_KEY` - Required for web research and real contact extraction
 - `DATABASE_URL` - PostgreSQL connection (auto-configured)
 
 ## Running the App
@@ -132,6 +191,7 @@ The app runs on port 5000 with the `Start application` workflow (`npm run dev`).
 
 ## Data Sources
 - **County Data**: Embedded Census Bureau county data (300+ counties, all 50 states + DC)
-- **Contact Patterns**: Generated following standard .gov conventions
+- **Real Contact Data**: Scraped from actual government websites using Tavily API
+- **Email Validation**: MX record lookup to verify deliverability
 - **Web Research**: Tavily API for real-time information
 - **AI Analysis**: Claude 4.5 Sonnet for extraction and script generation

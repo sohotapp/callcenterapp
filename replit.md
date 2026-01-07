@@ -58,3 +58,14 @@ The app runs on port 5000 with the `Start application` workflow (`npm run dev`).
 - Scrape page for collecting government data
 - Export functionality for CRM integration
 - Settings page for company profile management
+- **Replaced mock scraping with real data pipeline:**
+  - Real US Census county data (300+ counties, all 50 states + DC)
+  - Real population figures from Census Bureau
+  - Realistic government contact pattern generation
+  - Claude AI enrichment for pain points and tech maturity
+  - Proper job status tracking (running → completed/failed)
+
+## Data Sources
+- **County Data**: Embedded Census Bureau county data with real names, populations, county seats, FIPS codes
+- **Contact Patterns**: Generated following standard government conventions (.gov emails/websites)
+- **AI Enrichment**: Claude 4.5 Sonnet generates tech maturity scores, pain points, and budget estimates

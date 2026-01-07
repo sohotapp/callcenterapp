@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { insertGovernmentLeadSchema, insertScrapeJobSchema } from "@shared/schema";
+import { insertGovernmentLeadSchema, insertScrapeJobSchema, insertIcpProfileSchema, targetCriteriaSchema } from "@shared/schema";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 import { 
@@ -866,6 +866,80 @@ Focus on making the content compelling for enterprise and government decision-ma
     } catch (error) {
       console.error("Error exporting data:", error);
       res.status(500).json({ error: "Failed to export data" });
+    }
+  });
+
+  // ICP Profile routes
+  app.get("/api/icp", async (req: Request, res: Response) => {
+    try {
+      await storage.seedDefaultIcps();
+      const profiles = await storage.getIcpProfiles();
+      res.json(profiles);
+    } catch (error) {
+      console.error("Error fetching ICP profiles:", error);
+      res.status(500).json({ error: "Failed to fetch ICP profiles" });
+    }
+  });
+
+  app.get("/api/icp/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      const profile = await storage.getIcpProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching ICP profile:", error);
+      res.status(500).json({ error: "Failed to fetch ICP profile" });
+    }
+  });
+
+  const updateIcpSchema = z.object({
+    displayName: z.string().optional(),
+    description: z.string().optional(),
+    isActive: z.boolean().optional(),
+    targetCriteria: targetCriteriaSchema.optional(),
+    searchQueries: z.array(z.string()).optional(),
+  });
+
+  app.put("/api/icp/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      
+      const parseResult = updateIcpSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parseResult.error.flatten() });
+      }
+      
+      const profile = await storage.updateIcpProfile(id, parseResult.data);
+      if (!profile) {
+        return res.status(404).json({ error: "ICP profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error updating ICP profile:", error);
+      res.status(500).json({ error: "Failed to update ICP profile" });
+    }
+  });
+
+  app.get("/api/icp/:id/matching-leads", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ICP ID" });
+      }
+      const count = await storage.countMatchingLeads(id);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error counting matching leads:", error);
+      res.status(500).json({ error: "Failed to count matching leads" });
     }
   });
 

@@ -7,6 +7,7 @@ import {
   companyProfile,
   callLogs,
   scrapeJobs,
+  icpProfiles,
   type User,
   type InsertUser,
   type GovernmentLead,
@@ -19,6 +20,8 @@ import {
   type InsertCallLog,
   type ScrapeJob,
   type InsertScrapeJob,
+  type IcpProfile,
+  type InsertIcpProfile,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -47,6 +50,12 @@ export interface IStorage {
   getScrapeJob(id: number): Promise<ScrapeJob | undefined>;
   createScrapeJob(job: InsertScrapeJob): Promise<ScrapeJob>;
   updateScrapeJob(id: number, job: Partial<InsertScrapeJob>): Promise<ScrapeJob | undefined>;
+
+  getIcpProfiles(): Promise<IcpProfile[]>;
+  getIcpProfile(id: number): Promise<IcpProfile | undefined>;
+  updateIcpProfile(id: number, profile: Partial<InsertIcpProfile>): Promise<IcpProfile | undefined>;
+  seedDefaultIcps(): Promise<void>;
+  countMatchingLeads(icpId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -157,6 +166,156 @@ export class DatabaseStorage implements IStorage {
       .where(eq(scrapeJobs.id, id))
       .returning();
     return job;
+  }
+
+  async getIcpProfiles(): Promise<IcpProfile[]> {
+    return db.select().from(icpProfiles).orderBy(icpProfiles.id);
+  }
+
+  async getIcpProfile(id: number): Promise<IcpProfile | undefined> {
+    const [profile] = await db.select().from(icpProfiles).where(eq(icpProfiles.id, id));
+    return profile;
+  }
+
+  async updateIcpProfile(id: number, updates: Partial<InsertIcpProfile>): Promise<IcpProfile | undefined> {
+    const [profile] = await db
+      .update(icpProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(icpProfiles.id, id))
+      .returning();
+    return profile;
+  }
+
+  async countMatchingLeads(icpId: number): Promise<number> {
+    const icp = await this.getIcpProfile(icpId);
+    if (!icp) return 0;
+
+    const leads = await this.getAllLeads();
+    const criteria = icp.targetCriteria;
+    
+    if (!criteria) return leads.length;
+
+    return leads.filter(lead => {
+      if (criteria.minPopulation && lead.population && lead.population < criteria.minPopulation) return false;
+      if (criteria.maxPopulation && lead.population && lead.population > criteria.maxPopulation) return false;
+      if (criteria.techMaturityMin && lead.techMaturityScore && lead.techMaturityScore < criteria.techMaturityMin) return false;
+      if (criteria.techMaturityMax && lead.techMaturityScore && lead.techMaturityScore > criteria.techMaturityMax) return false;
+      if (criteria.states && criteria.states.length > 0 && !criteria.states.includes(lead.state)) return false;
+      if (criteria.departments && criteria.departments.length > 0 && lead.department && !criteria.departments.includes(lead.department)) return false;
+      return true;
+    }).length;
+  }
+
+  async seedDefaultIcps(): Promise<void> {
+    const existing = await this.getIcpProfiles();
+    if (existing.length > 0) return;
+
+    const defaultIcps: InsertIcpProfile[] = [
+      {
+        verticalName: "government",
+        displayName: "Government",
+        description: "Counties, municipalities, state agencies, and local government departments seeking to modernize their technology infrastructure.",
+        isActive: true,
+        targetCriteria: {
+          minPopulation: 50000,
+          maxPopulation: null,
+          departments: ["County Administration", "Information Technology", "Finance & Budget", "Public Works"],
+          states: [],
+          painPointKeywords: ["legacy systems", "manual processes", "citizen services", "data silos", "compliance"],
+          techMaturityMin: 1,
+          techMaturityMax: 6,
+        },
+        searchQueries: [
+          "county government IT modernization",
+          "municipal technology upgrade",
+          "state agency digital transformation"
+        ],
+      },
+      {
+        verticalName: "healthcare",
+        displayName: "Healthcare",
+        description: "Hospitals, health systems, clinics, and healthcare organizations looking to improve patient care through AI and automation.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Health Information Technology", "Clinical Operations", "Patient Services"],
+          states: [],
+          painPointKeywords: ["EHR integration", "patient scheduling", "claims processing", "HIPAA compliance"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "hospital AI implementation",
+          "healthcare automation solutions",
+          "clinical workflow optimization"
+        ],
+      },
+      {
+        verticalName: "legal",
+        displayName: "Legal",
+        description: "Law firms and corporate legal departments seeking efficiency through document automation and AI-powered research.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Legal Operations", "Document Management", "Research"],
+          states: [],
+          painPointKeywords: ["document review", "contract analysis", "legal research", "case management"],
+          techMaturityMin: 2,
+          techMaturityMax: 6,
+        },
+        searchQueries: [
+          "law firm technology adoption",
+          "legal AI tools",
+          "corporate legal department automation"
+        ],
+      },
+      {
+        verticalName: "financial_services",
+        displayName: "Financial Services",
+        description: "Banks, credit unions, and insurance companies looking to enhance customer experience and operational efficiency.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Customer Service", "Risk Management", "Compliance"],
+          states: [],
+          painPointKeywords: ["fraud detection", "customer onboarding", "regulatory compliance", "loan processing"],
+          techMaturityMin: 4,
+          techMaturityMax: 8,
+        },
+        searchQueries: [
+          "banking AI solutions",
+          "credit union technology modernization",
+          "insurance automation"
+        ],
+      },
+      {
+        verticalName: "pe",
+        displayName: "Private Equity",
+        description: "PE firms and their portfolio companies seeking operational improvements and value creation through technology.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Technology", "Finance"],
+          states: [],
+          painPointKeywords: ["operational efficiency", "due diligence", "portfolio management", "value creation"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "PE portfolio company technology",
+          "private equity operational improvement",
+          "PE value creation AI"
+        ],
+      },
+    ];
+
+    for (const icp of defaultIcps) {
+      await db.insert(icpProfiles).values(icp);
+    }
   }
 }
 

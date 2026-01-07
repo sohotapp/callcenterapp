@@ -149,3 +149,40 @@ export const insertScrapeJobSchema = createInsertSchema(scrapeJobs).omit({
 
 export type InsertScrapeJob = z.infer<typeof insertScrapeJobSchema>;
 export type ScrapeJob = typeof scrapeJobs.$inferSelect;
+
+// ICP Target Criteria schema for JSONB storage
+export const targetCriteriaSchema = z.object({
+  minPopulation: z.number().nullable().optional(),
+  maxPopulation: z.number().nullable().optional(),
+  minBudget: z.number().nullable().optional(),
+  maxBudget: z.number().nullable().optional(),
+  departments: z.array(z.string()).optional(),
+  states: z.array(z.string()).optional(),
+  painPointKeywords: z.array(z.string()).optional(),
+  techMaturityMin: z.number().min(1).max(10).nullable().optional(),
+  techMaturityMax: z.number().min(1).max(10).nullable().optional(),
+});
+
+export type TargetCriteria = z.infer<typeof targetCriteriaSchema>;
+
+// ICP Profiles - Ideal Customer Profile for different verticals
+export const icpProfiles = pgTable("icp_profiles", {
+  id: serial("id").primaryKey(),
+  verticalName: text("vertical_name").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  targetCriteria: jsonb("target_criteria").$type<TargetCriteria>(),
+  searchQueries: text("search_queries").array(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertIcpProfileSchema = createInsertSchema(icpProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertIcpProfile = z.infer<typeof insertIcpProfileSchema>;
+export type IcpProfile = typeof icpProfiles.$inferSelect;

@@ -37,6 +37,11 @@ const mainNavItems = [
     url: "/scripts",
     icon: FileText,
   },
+  {
+    title: "ICP Builder",
+    url: "/icp",
+    icon: Target,
+  },
 ];
 
 const toolsItems = [

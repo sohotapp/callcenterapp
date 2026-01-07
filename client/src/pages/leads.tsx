@@ -121,8 +121,8 @@ export default function LeadsPage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const uniqueStates = [...new Set(leads?.map((l) => l.state) ?? [])].sort();
-  const uniqueTypes = [...new Set(leads?.map((l) => l.institutionType) ?? [])].sort();
+  const uniqueStates = Array.from(new Set(leads?.map((l) => l.state) ?? [])).sort();
+  const uniqueTypes = Array.from(new Set(leads?.map((l) => l.institutionType) ?? [])).sort();
 
   const handleSort = (column: string) => {
     if (sortBy === column) {

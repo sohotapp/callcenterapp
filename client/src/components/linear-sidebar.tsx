@@ -2,22 +2,22 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  Users,
-  FileText,
-  Globe,
-  Download,
+  Building2,
+  MessageSquareText,
+  Database,
+  FileDown,
   Settings,
-  BarChart3,
-  Target,
+  TrendingUp,
+  Crosshair,
   Search,
   ChevronLeft,
   ChevronRight,
   Command,
   Moon,
   Sun,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Logo, LogoIcon } from "@/components/logo";
 import {
   Tooltip,
   TooltipContent,
@@ -33,15 +33,15 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, shortcut: "G H" },
-  { label: "Leads", href: "/leads", icon: Users, shortcut: "G L" },
-  { label: "Scripts", href: "/scripts", icon: FileText },
-  { label: "Scrape", href: "/scrape", icon: Globe, shortcut: "G S" },
-  { label: "ICP", href: "/icp", icon: Target },
-  { label: "Analytics", href: "/analytics", icon: BarChart3, shortcut: "G A" },
+  { label: "Leads", href: "/leads", icon: Building2, shortcut: "G L" },
+  { label: "Scripts", href: "/scripts", icon: MessageSquareText },
+  { label: "Scrape", href: "/scrape", icon: Database, shortcut: "G S" },
+  { label: "ICP", href: "/icp", icon: Crosshair },
+  { label: "Analytics", href: "/analytics", icon: TrendingUp, shortcut: "G A" },
 ];
 
 const bottomNavItems: NavItem[] = [
-  { label: "Export", href: "/export", icon: Download },
+  { label: "Export", href: "/export", icon: FileDown },
   { label: "Settings", href: "/settings", icon: Settings, shortcut: "G E" },
 ];
 
@@ -178,17 +178,10 @@ export function LinearSidebar() {
       {/* Header */}
       <div className="flex items-center h-14 px-3 border-b border-sidebar-border">
         {!isCollapsed ? (
-          <div className="flex items-center gap-2 flex-1">
-            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground">
-              <Zap className="h-4 w-4" />
-            </div>
-            <span className="font-semibold text-sm">GovLeads</span>
-          </div>
+          <Logo size="md" showText={true} />
         ) : (
           <div className="flex items-center justify-center w-full">
-            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground">
-              <Zap className="h-4 w-4" />
-            </div>
+            <LogoIcon />
           </div>
         )}
       </div>

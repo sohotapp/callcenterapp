@@ -4,15 +4,15 @@ import {
   Sparkles,
   Loader2,
   Search,
-  Users,
-  BarChart3,
-  FileText,
-  Target,
+  Building2,
+  TrendingUp,
+  MessageSquareText,
+  Crosshair,
   Send,
-  Globe,
+  Database,
   Settings,
-  Download,
-  Home,
+  FileDown,
+  LayoutDashboard,
   Command,
   ArrowRight,
 } from "lucide-react";
@@ -65,21 +65,21 @@ export function AICommandPalette({ currentLeadId, selectedLeadIds }: AICommandPa
   }, [open]);
 
   const navigationCommands = [
-    { icon: Home, label: "Dashboard", shortcut: "G H", action: () => { setLocation("/"); setOpen(false); } },
-    { icon: Users, label: "Leads", shortcut: "G L", action: () => { setLocation("/leads"); setOpen(false); } },
-    { icon: Globe, label: "Scrape", shortcut: "G S", action: () => { setLocation("/scrape"); setOpen(false); } },
-    { icon: FileText, label: "Scripts", action: () => { setLocation("/scripts"); setOpen(false); } },
-    { icon: Target, label: "ICP Builder", action: () => { setLocation("/icp"); setOpen(false); } },
-    { icon: BarChart3, label: "Analytics", shortcut: "G A", action: () => { setLocation("/analytics"); setOpen(false); } },
-    { icon: Download, label: "Export", action: () => { setLocation("/export"); setOpen(false); } },
+    { icon: LayoutDashboard, label: "Dashboard", shortcut: "G H", action: () => { setLocation("/"); setOpen(false); } },
+    { icon: Building2, label: "Leads", shortcut: "G L", action: () => { setLocation("/leads"); setOpen(false); } },
+    { icon: Database, label: "Scrape", shortcut: "G S", action: () => { setLocation("/scrape"); setOpen(false); } },
+    { icon: MessageSquareText, label: "Scripts", action: () => { setLocation("/scripts"); setOpen(false); } },
+    { icon: Crosshair, label: "ICP Builder", action: () => { setLocation("/icp"); setOpen(false); } },
+    { icon: TrendingUp, label: "Analytics", shortcut: "G A", action: () => { setLocation("/analytics"); setOpen(false); } },
+    { icon: FileDown, label: "Export", action: () => { setLocation("/export"); setOpen(false); } },
     { icon: Settings, label: "Settings", shortcut: "G E", action: () => { setLocation("/settings"); setOpen(false); } },
   ];
 
   const aiCommands = [
     { icon: Search, label: "Find high priority leads", action: () => askAI("Show me the top 5 highest priority leads that haven't been contacted yet") },
     { icon: Sparkles, label: "Suggest next actions", action: () => askAI("Based on my current data, what should I focus on today?") },
-    { icon: Users, label: "Analyze lead quality", action: () => askAI("Give me a quick analysis of my lead quality and any issues") },
-    { icon: Target, label: "Best outreach strategy", action: () => askAI("What's the best outreach strategy for government leads?") },
+    { icon: Building2, label: "Analyze lead quality", action: () => askAI("Give me a quick analysis of my lead quality and any issues") },
+    { icon: Crosshair, label: "Best outreach strategy", action: () => askAI("What's the best outreach strategy for government leads?") },
   ];
 
   async function askAI(command: string) {

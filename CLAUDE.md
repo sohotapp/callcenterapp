@@ -1,5 +1,28 @@
 # CLAUDE.md - AI Lead Generation Platform
 
+---
+
+## IMPORTANT: Use Ralph Planning System
+
+**Before ANY work, read these files in order:**
+
+1. `.ralph/PROMPT.md` - Project mission and intelligence-first philosophy
+2. `.ralph/@fix_plan.md` - Current task list with checkboxes (89 tasks, 10 phases)
+3. `.ralph/@AGENT.md` - Build commands and verification steps
+4. `.ralph/specs/` - Detailed specifications (database, security, testing, observability)
+
+**Workflow:**
+1. Read `.ralph/@fix_plan.md` to find the next unchecked `[ ]` task
+2. Complete the task following `.ralph/PROMPT.md` anti-slop guidelines
+3. Verify with commands: `npm run build`, `npm test`
+4. Update `.ralph/@fix_plan.md` to check off completed task `[x]`
+5. Commit changes with descriptive message
+6. Move to next task
+
+**Never improvise. Follow the plan.**
+
+---
+
 ## Mission
 Build the most efficient AI-native outreach platform for B2B cold calling. Think "Juice Box AI for leads" - maximum contact discovery with minimal friction using Claude API + Tavily for real-time web scraping.
 
@@ -128,6 +151,9 @@ Each ICP has a playbook config in `icp_profiles.playbookConfig`:
 ---
 
 # STRATEGIC IMPROVEMENT ROADMAP
+
+> **DEPRECATED**: This roadmap has been replaced by `.ralph/@fix_plan.md`
+> See the Ralph Planning System above for current tasks.
 
 ## Phase 1: Core Efficiency (Critical)
 

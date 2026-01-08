@@ -297,14 +297,25 @@ export default function LeadDetail() {
         </div>
         <div className="flex flex-wrap gap-2">
           {lead.phoneNumber && (
-            <Button
-              variant="outline"
-              onClick={() => copyToClipboard(lead.phoneNumber!, "Phone number")}
-              data-testid="button-copy-phone"
-            >
-              <Phone className="h-4 w-4 mr-2" />
-              {lead.phoneNumber}
-            </Button>
+            <>
+              <a href={`tel:${lead.phoneNumber}`}>
+                <Button
+                  variant="default"
+                  data-testid="button-call-now"
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Call Now
+                </Button>
+              </a>
+              <Button
+                variant="outline"
+                onClick={() => copyToClipboard(lead.phoneNumber!, "Phone number")}
+                data-testid="button-copy-phone"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                {lead.phoneNumber}
+              </Button>
+            </>
           )}
         </div>
       </div>

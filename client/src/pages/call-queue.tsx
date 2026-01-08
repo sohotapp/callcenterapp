@@ -113,16 +113,18 @@ function BriefingCard({ briefing, onLogOutcome, onSkip }: {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Contact Info */}
-        <div className="flex gap-4 text-sm">
+        {/* Call Now Button & Contact Info */}
+        <div className="flex flex-wrap items-center gap-3">
           {briefing.contactInfo.phone && (
-            <a href={`tel:${briefing.contactInfo.phone}`} className="flex items-center gap-1 text-primary hover:underline">
-              <Phone className="h-4 w-4" />
-              {briefing.contactInfo.phone}
+            <a href={`tel:${briefing.contactInfo.phone}`}>
+              <Button size="lg" className="bg-green-600 hover:bg-green-700">
+                <Phone className="h-5 w-5 mr-2" />
+                Call Now: {briefing.contactInfo.phone}
+              </Button>
             </a>
           )}
           {briefing.contactInfo.email && (
-            <a href={`mailto:${briefing.contactInfo.email}`} className="text-primary hover:underline">
+            <a href={`mailto:${briefing.contactInfo.email}`} className="text-sm text-primary hover:underline">
               {briefing.contactInfo.email}
             </a>
           )}
@@ -194,7 +196,16 @@ function BriefingCard({ briefing, onLogOutcome, onSkip }: {
                 <div key={i} className="text-sm">
                   <p className="font-medium">{dm.name}</p>
                   <p className="text-muted-foreground">{dm.title}</p>
-                  {dm.phone && <p className="text-xs">{dm.phone}</p>}
+                  {dm.phone && (
+                    <a href={`tel:${dm.phone}`} className="text-xs text-primary hover:underline">
+                      {dm.phone}
+                    </a>
+                  )}
+                  {dm.email && (
+                    <a href={`mailto:${dm.email}`} className="text-xs text-primary hover:underline block">
+                      {dm.email}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

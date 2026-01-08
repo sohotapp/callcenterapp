@@ -433,8 +433,8 @@
 ## Phase 12: Outreach Execution Layer (NEW - Connects Intelligence to Action)
 
 ### 12.1 Click-to-Call Integration
-- [ ] Add `tel:` link to phone numbers throughout app
-- [ ] Add "Call Now" button in briefing card that opens phone
+- [x] Add `tel:` link to phone numbers throughout app
+- [x] Add "Call Now" button in briefing card that opens phone
 - [ ] Add call timer that starts when "Call Now" clicked
 - [ ] Add quick-log modal that appears after call ends
 - [ ] Track call duration in outreach_history
@@ -466,7 +466,7 @@
 
 **Started:** 2026-01-08
 **Last Updated:** 2026-01-08
-**Tasks Completed:** 64 / 207
+**Tasks Completed:** 66 / 207
 **Current Phase:** Phase 11 Lead Entry & Import (NEXT CRITICAL)
 
 ---

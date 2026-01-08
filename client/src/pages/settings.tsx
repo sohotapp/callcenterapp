@@ -684,13 +684,13 @@ export default function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">About GovLeads</CardTitle>
+            <CardTitle className="text-base">About RLTX Lead Gen</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>
-              GovLeads is an intelligent government sales pipeline platform that helps
-              you identify, research, and connect with local government institutions
-              across the United States.
+              RLTX Lead Gen is an AI-powered B2B lead generation platform that helps
+              you identify, research, and connect with qualified prospects across
+              multiple industries.
             </p>
             <p>
               Powered by Claude AI to generate personalized cold-call scripts

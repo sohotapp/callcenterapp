@@ -29,7 +29,7 @@ export function Logo({ size = "md", showText = true, className }: LogoProps) {
           className="w-4/5 h-4/5"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* Stylized "G" for GovLeads */}
+          {/* Stylized "R" for RLTX */}
           <path
             d="M12 4C7.58 4 4 7.58 4 12C4 16.42 7.58 20 12 20C14.4 20 16.55 18.95 18 17.28"
             stroke="currentColor"
@@ -64,7 +64,8 @@ export function Logo({ size = "md", showText = true, className }: LogoProps) {
       </div>
       {showText && (
         <span className={cn("font-semibold tracking-tight", sizes[size].text)}>
-          GovLeads
+          <span className="text-primary">RLTX</span>{" "}
+          <span className="text-muted-foreground font-normal">Lead Gen</span>
         </span>
       )}
     </div>

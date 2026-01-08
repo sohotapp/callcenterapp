@@ -309,7 +309,7 @@ export default function ScriptsPage() {
 
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-muted-foreground">Value Proposition</h4>
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-4">
+                  <div className="bg-green-50 dark:bg-green-950/30 border border-green-500/30 rounded-md p-4">
                     <p className="text-sm">{selectedScript.valueProposition}</p>
                   </div>
                 </div>

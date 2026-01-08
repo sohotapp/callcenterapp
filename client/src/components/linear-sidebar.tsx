@@ -17,7 +17,6 @@ import {
   Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Logo, LogoIcon } from "@/components/logo";
 import {
   Tooltip,
   TooltipContent,
@@ -178,10 +177,15 @@ export function LinearSidebar() {
       {/* Header */}
       <div className="flex items-center h-14 px-3 border-b border-sidebar-border">
         {!isCollapsed ? (
-          <Logo size="md" showText={true} />
+          <div className="flex items-center">
+            <span className="text-sm font-semibold tracking-tight">
+              <span className="text-primary">RLTX</span>
+              <span className="text-muted-foreground font-normal ml-1">Lead Gen</span>
+            </span>
+          </div>
         ) : (
           <div className="flex items-center justify-center w-full">
-            <LogoIcon />
+            <span className="text-primary font-bold text-sm">R</span>
           </div>
         )}
       </div>

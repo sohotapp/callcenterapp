@@ -458,7 +458,7 @@ export default function LeadDetail() {
                             Copy
                           </Button>
                         </div>
-                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-4">
+                        <div className="bg-green-50 dark:bg-green-950/30 border border-green-500/30 rounded-md p-4">
                           <p className="text-sm leading-relaxed">{currentScript.valueProposition}</p>
                         </div>
                       </div>
@@ -513,7 +513,7 @@ export default function LeadDetail() {
                                     </div>
                                   </CollapsibleTrigger>
                                   <CollapsibleContent>
-                                    <div className="mt-2 ml-6 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border-l-2 border-green-500">
+                                    <div className="mt-2 ml-6 p-3 bg-green-50 dark:bg-green-950/30 rounded-md border-l-2 border-green-500/70">
                                       <p className="text-sm">{handler.response}</p>
                                       <Button
                                         size="sm"

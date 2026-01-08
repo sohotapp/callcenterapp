@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Target,
@@ -13,6 +13,21 @@ import {
   Users,
   Loader2,
   Sparkles,
+  Building,
+  TrendingUp,
+  Cpu,
+  Shield,
+  Banknote,
+  LineChart,
+  Coins,
+  DollarSign,
+  Heart,
+  GraduationCap,
+  School,
+  Factory,
+  Zap,
+  Globe,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,19 +44,71 @@ import { extractArray } from "@/lib/utils";
 import type { IcpProfile, TargetCriteria } from "@shared/schema";
 
 const verticalIcons: Record<string, typeof Target> = {
-  government: Building2,
-  healthcare: Stethoscope,
-  legal: Scale,
+  // Enterprise
+  fortune_500: Building,
+  mid_market: TrendingUp,
+  // Professional Services
+  management_consulting: Briefcase,
+  it_consulting: Cpu,
+  big4_accounting: Landmark,
+  // Technology
+  saas_companies: Globe,
+  cybersecurity: Shield,
+  // Financial Services
+  investment_banks: Banknote,
+  hedge_funds: LineChart,
+  fintech: Coins,
   financial_services: Landmark,
-  pe: Briefcase,
+  // Private Capital
+  pe: DollarSign,
+  venture_capital: TrendingUp,
+  // Healthcare
+  healthcare: Stethoscope,
+  health_tech: Heart,
+  // Legal
+  legal: Scale,
+  // Education
+  higher_education: GraduationCap,
+  k12_education: School,
+  // Industrial
+  manufacturing: Factory,
+  energy_utilities: Zap,
+  // Government
+  government: Building2,
 };
 
 const verticalColors: Record<string, string> = {
-  government: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-  healthcare: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-  legal: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  // Enterprise - Blue
+  fortune_500: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  mid_market: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  // Professional Services - Indigo
+  management_consulting: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  it_consulting: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  big4_accounting: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  // Technology - Cyan
+  saas_companies: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
+  cybersecurity: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
+  // Financial Services - Purple
+  investment_banks: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  hedge_funds: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  fintech: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
   financial_services: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  // Private Capital - Rose
   pe: "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300",
+  venture_capital: "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300",
+  // Healthcare - Green
+  healthcare: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  health_tech: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  // Legal - Amber
+  legal: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  // Education - Violet
+  higher_education: "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
+  k12_education: "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
+  // Industrial - Orange
+  manufacturing: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  energy_utilities: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  // Government - Slate
+  government: "bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300",
 };
 
 interface AiSuggestion {
@@ -397,6 +464,34 @@ function IcpCardSkeleton() {
 
 export default function IcpPage() {
   const { toast } = useToast();
+  const [hasSynced, setHasSynced] = useState(false);
+
+  // Sync mutation to update/create ICP templates
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/icp/sync");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/icp"] });
+      if (data.created > 0 || data.updated > 0) {
+        toast({
+          title: "ICP Templates Synced",
+          description: `${data.created} new templates added, ${data.updated} updated`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      console.error("Failed to sync ICP templates:", error);
+    },
+  });
+
+  // Auto-sync on mount
+  useEffect(() => {
+    if (!hasSynced) {
+      syncMutation.mutate();
+      setHasSynced(true);
+    }
+  }, [hasSynced]);
 
   const { data: profilesData, isLoading } = useQuery<unknown>({
     queryKey: ["/api/icp"],
@@ -471,6 +566,16 @@ export default function IcpPage() {
           <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate">
             {activeCount} of {profiles.length} active
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            data-testid="button-sync-icps"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+            {syncMutation.isPending ? "Syncing..." : "Sync Templates"}
+          </Button>
         </div>
       </div>
 

@@ -107,7 +107,7 @@ export function SmartLeadCard({ lead, onCall, onEmail, onClick, compact = false 
   if (compact) {
     return (
       <Card
-        className="cursor-pointer hover:border-purple-300 transition-colors"
+        className="cursor-pointer hover:border-primary/50 transition-colors"
         onClick={onClick}
       >
         <CardContent className="p-4">
@@ -142,7 +142,7 @@ export function SmartLeadCard({ lead, onCall, onEmail, onClick, compact = false 
           </div>
 
           {showSummary && (
-            <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 mb-1">
                 <Sparkles className="h-3 w-3" />
                 <span>AI Insight</span>
@@ -279,7 +279,7 @@ export function SmartLeadCard({ lead, onCall, onEmail, onClick, compact = false 
           </Button>
 
           {(isLoading || aiSummary) && (
-            <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 mb-2">
                 <Sparkles className="h-3 w-3" />
                 <span className="font-medium">AI Insight</span>

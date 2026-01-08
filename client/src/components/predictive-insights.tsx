@@ -221,7 +221,7 @@ export function PredictiveInsightsCard() {
                 <Badge
                   key={factor.name}
                   variant="outline"
-                  className={`text-xs ${factor.avgImpact > 0 ? "border-green-300 text-green-700 dark:text-green-300" : "border-red-300 text-red-700 dark:text-red-300"}`}
+                  className={`text-xs ${factor.avgImpact > 0 ? "border-green-500/50 text-green-600 dark:text-green-400" : "border-red-500/50 text-red-600 dark:text-red-400"}`}
                 >
                   {factor.name} ({factor.avgImpact > 0 ? "+" : ""}{factor.avgImpact})
                 </Badge>

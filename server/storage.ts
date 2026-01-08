@@ -99,6 +99,7 @@ export interface IStorage {
   updateIcpProfile(id: number, profile: Partial<InsertIcpProfile>): Promise<IcpProfile | undefined>;
   seedDefaultIcps(): Promise<void>;
   seedDefaultPlaybooks(): Promise<void>;
+  syncIcpProfiles(): Promise<{ created: number; updated: number }>;
   countMatchingLeads(icpId: number): Promise<number>;
 
   // Email Sequences
@@ -367,17 +368,436 @@ export class DatabaseStorage implements IStorage {
     if (existing.length > 0) return;
 
     const defaultIcps: InsertIcpProfile[] = [
+      // === ENTERPRISE ===
+      {
+        verticalName: "fortune_500",
+        displayName: "Fortune 500",
+        description: "C-level and VP technology leaders at America's largest corporations driving digital transformation, cloud migration, and AI adoption initiatives.",
+        isActive: true,
+        targetCriteria: {
+          minPopulation: 10000,
+          maxPopulation: null,
+          departments: ["Technology", "IT", "Digital", "Engineering", "Innovation"],
+          states: [],
+          painPointKeywords: ["digital transformation", "cloud migration", "legacy modernization", "AI adoption", "data analytics", "cybersecurity"],
+          techMaturityMin: 5,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "Fortune 500 CTO digital transformation",
+          "enterprise cloud migration strategy",
+          "corporate AI adoption initiatives"
+        ],
+      },
+      {
+        verticalName: "mid_market",
+        displayName: "Mid-Market Enterprise",
+        description: "Technology decision makers at companies with 500-5000 employees looking to scale their operations and modernize infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 500,
+          maxPopulation: 5000,
+          departments: ["IT", "Technology", "Operations", "Engineering"],
+          states: [],
+          painPointKeywords: ["scaling challenges", "system integration", "process automation", "growth technology"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "mid-market company CTO IT director",
+          "growing company technology modernization",
+          "SMB digital transformation"
+        ],
+      },
+
+      // === PROFESSIONAL SERVICES ===
+      {
+        verticalName: "management_consulting",
+        displayName: "Management Consulting (Top 20)",
+        description: "Partners and technology practice leaders at McKinsey, BCG, Bain, and other top-tier consulting firms building digital and AI capabilities.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology Practice", "Digital Practice", "Analytics Practice", "Operations"],
+          states: [],
+          painPointKeywords: ["client delivery", "knowledge management", "practice growth", "AI offerings", "digital consulting"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "McKinsey BCG Bain technology partner",
+          "management consulting digital practice",
+          "consulting firm AI capabilities"
+        ],
+      },
+      {
+        verticalName: "it_consulting",
+        displayName: "IT Consulting & Systems Integrators",
+        description: "Practice leads and delivery directors at technology consulting firms and systems integrators implementing enterprise solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Delivery", "Solutions", "Practice Management", "Technology"],
+          states: [],
+          painPointKeywords: ["implementation efficiency", "client delivery", "technical expertise", "automation"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "systems integrator practice lead",
+          "IT consulting delivery director",
+          "technology consulting CTO"
+        ],
+      },
+      {
+        verticalName: "big4_accounting",
+        displayName: "Big 4 Accounting Firms",
+        description: "Technology and digital leaders at Deloitte, PwC, EY, and KPMG driving innovation in audit, tax, and advisory practices.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Innovation", "Technology", "Digital", "Audit Innovation", "Tax Technology"],
+          states: [],
+          painPointKeywords: ["audit automation", "tax technology", "advisory tools", "AI compliance"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "Deloitte PwC EY KPMG technology leader",
+          "Big 4 audit innovation",
+          "accounting firm digital transformation"
+        ],
+      },
+
+      // === TECHNOLOGY ===
+      {
+        verticalName: "saas_companies",
+        displayName: "SaaS Companies (Series B+)",
+        description: "CTOs and VPs of Engineering at growth-stage SaaS companies scaling their platform, infrastructure, and engineering teams.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 50,
+          maxPopulation: 2000,
+          departments: ["Engineering", "Platform", "Infrastructure", "DevOps"],
+          states: [],
+          painPointKeywords: ["scaling infrastructure", "engineering velocity", "platform reliability", "DevOps automation"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "SaaS company CTO VP Engineering",
+          "Series B startup technology leader",
+          "growth stage SaaS infrastructure"
+        ],
+      },
+      {
+        verticalName: "cybersecurity",
+        displayName: "Cybersecurity Companies",
+        description: "CISOs, CTOs, and security leaders at cybersecurity vendors and enterprise security teams building next-gen defenses.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Security Engineering", "Threat Research", "Product Security", "Security Operations"],
+          states: [],
+          painPointKeywords: ["threat detection", "security automation", "SOC efficiency", "vulnerability management"],
+          techMaturityMin: 8,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "cybersecurity company CISO CTO",
+          "enterprise security leader",
+          "security vendor technology"
+        ],
+      },
+
+      // === FINANCIAL SERVICES ===
+      {
+        verticalName: "investment_banks",
+        displayName: "Investment Banks",
+        description: "Technology leaders at bulge bracket and middle-market investment banks driving trading systems, risk platforms, and digital transformation.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Trading Technology", "Risk Technology", "Digital Banking"],
+          states: [],
+          painPointKeywords: ["trading systems", "risk analytics", "regulatory technology", "client platforms"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "investment bank CTO technology MD",
+          "Goldman Morgan JPMorgan technology",
+          "banking trading systems technology"
+        ],
+      },
+      {
+        verticalName: "hedge_funds",
+        displayName: "Hedge Funds & Asset Managers",
+        description: "CTOs and technology heads at quantitative and discretionary investment firms building trading infrastructure and analytics platforms.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Quantitative Research", "Trading Infrastructure", "Data"],
+          states: [],
+          painPointKeywords: ["alpha generation", "data infrastructure", "trading systems", "quantitative tools"],
+          techMaturityMin: 8,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "hedge fund CTO technology head",
+          "asset manager quantitative technology",
+          "investment firm data infrastructure"
+        ],
+      },
+      {
+        verticalName: "fintech",
+        displayName: "Fintech Companies",
+        description: "Technology leaders at fintech startups and scale-ups disrupting banking, payments, lending, and financial infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Engineering", "Platform", "Product", "Data"],
+          states: [],
+          painPointKeywords: ["payment processing", "lending automation", "compliance technology", "banking APIs"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "fintech CTO VP Engineering",
+          "payments company technology leader",
+          "neobank infrastructure"
+        ],
+      },
+      {
+        verticalName: "financial_services",
+        displayName: "Banks & Credit Unions",
+        description: "CIOs and technology leaders at regional banks, credit unions, and community financial institutions modernizing core systems.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Customer Service", "Risk Management", "Compliance"],
+          states: [],
+          painPointKeywords: ["fraud detection", "customer onboarding", "regulatory compliance", "loan processing", "core banking"],
+          techMaturityMin: 4,
+          techMaturityMax: 8,
+        },
+        searchQueries: [
+          "regional bank CIO technology",
+          "credit union digital transformation",
+          "community bank modernization"
+        ],
+      },
+
+      // === PRIVATE CAPITAL ===
+      {
+        verticalName: "pe",
+        displayName: "Private Equity Firms",
+        description: "Operating Partners and technology advisors at PE firms driving value creation and operational improvements across portfolio companies.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Technology", "Finance", "Portfolio Operations"],
+          states: [],
+          painPointKeywords: ["operational efficiency", "due diligence", "portfolio management", "value creation", "operational DD"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "PE operating partner technology",
+          "private equity value creation",
+          "portfolio company CTO"
+        ],
+      },
+      {
+        verticalName: "venture_capital",
+        displayName: "Venture Capital Firms",
+        description: "Operating partners, CTOs-in-residence, and platform teams at VC firms supporting portfolio company technology decisions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Platform", "Operations", "Portfolio Support", "Technology"],
+          states: [],
+          painPointKeywords: ["portfolio support", "technical due diligence", "founder support", "platform services"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "VC firm operating partner CTO",
+          "venture capital platform team",
+          "VC portfolio technology"
+        ],
+      },
+
+      // === HEALTHCARE ===
+      {
+        verticalName: "healthcare",
+        displayName: "Hospital Systems",
+        description: "CIOs, CMIOs, and health IT leaders at hospitals and health systems implementing clinical systems and patient care technology.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Health Information Technology", "Clinical Operations", "Patient Services", "Digital Health"],
+          states: [],
+          painPointKeywords: ["EHR integration", "patient scheduling", "claims processing", "HIPAA compliance", "clinical AI"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "hospital CIO CMIO health IT",
+          "health system technology leader",
+          "clinical informatics director"
+        ],
+      },
+      {
+        verticalName: "health_tech",
+        displayName: "Health Tech Companies",
+        description: "CTOs and engineering leaders at digital health startups and health technology vendors building clinical and patient-facing solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Engineering", "Product", "Clinical", "Data Science"],
+          states: [],
+          painPointKeywords: ["clinical validation", "HIPAA engineering", "patient engagement", "EHR integration"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: [
+          "health tech CTO VP Engineering",
+          "digital health startup technology",
+          "healthcare AI company"
+        ],
+      },
+
+      // === LEGAL ===
+      {
+        verticalName: "legal",
+        displayName: "Law Firms (AmLaw 200)",
+        description: "CIOs, innovation partners, and legal tech leaders at major law firms implementing AI for e-discovery, research, and practice management.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Legal Operations", "Document Management", "Research", "Innovation", "IT"],
+          states: [],
+          painPointKeywords: ["document review", "contract analysis", "legal research", "case management", "e-discovery"],
+          techMaturityMin: 2,
+          techMaturityMax: 6,
+        },
+        searchQueries: [
+          "AmLaw law firm CIO innovation",
+          "legal technology director",
+          "law firm e-discovery AI"
+        ],
+      },
+
+      // === EDUCATION ===
+      {
+        verticalName: "higher_education",
+        displayName: "Higher Education (Top 200)",
+        description: "CIOs and IT directors at universities and colleges modernizing campus technology, student systems, and research infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Information Technology", "Academic Technology", "Research Computing", "Student Systems"],
+          states: [],
+          painPointKeywords: ["student information systems", "research computing", "campus technology", "LMS integration"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "university CIO IT director",
+          "higher education technology leader",
+          "campus technology modernization"
+        ],
+      },
+      {
+        verticalName: "k12_education",
+        displayName: "K-12 School Districts",
+        description: "Technology directors and CIOs at large school districts implementing educational technology and administrative systems.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 10000,
+          maxPopulation: null,
+          departments: ["Technology", "Information Systems", "Curriculum Technology", "Operations"],
+          states: [],
+          painPointKeywords: ["student data", "educational technology", "district systems", "learning management"],
+          techMaturityMin: 2,
+          techMaturityMax: 5,
+        },
+        searchQueries: [
+          "school district CTO technology director",
+          "K-12 education technology",
+          "school district IT modernization"
+        ],
+      },
+
+      // === INDUSTRIAL ===
+      {
+        verticalName: "manufacturing",
+        displayName: "Manufacturing",
+        description: "Technology leaders at manufacturing companies implementing Industry 4.0, IoT, and operational technology solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Operations Technology", "Digital Manufacturing", "IT/OT"],
+          states: [],
+          painPointKeywords: ["Industry 4.0", "IoT", "operational technology", "predictive maintenance", "supply chain"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "manufacturing CTO digital transformation",
+          "Industry 4.0 technology leader",
+          "smart factory technology"
+        ],
+      },
+      {
+        verticalName: "energy_utilities",
+        displayName: "Energy & Utilities",
+        description: "Technology and digital leaders at energy companies and utilities modernizing grid infrastructure and operations.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Grid Operations", "Digital", "SCADA/OT"],
+          states: [],
+          painPointKeywords: ["grid modernization", "smart metering", "renewable integration", "SCADA security"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: [
+          "utility CIO technology leader",
+          "energy company digital transformation",
+          "smart grid technology"
+        ],
+      },
+
+      // === GOVERNMENT ===
       {
         verticalName: "government",
         displayName: "Government",
-        description: "Counties, municipalities, state agencies, and local government departments seeking to modernize their technology infrastructure.",
+        description: "IT directors, CIOs, and department heads at counties, municipalities, and state agencies modernizing citizen services and operations.",
         isActive: true,
         targetCriteria: {
           minPopulation: 50000,
           maxPopulation: null,
           departments: ["County Administration", "Information Technology", "Finance & Budget", "Public Works"],
           states: [],
-          painPointKeywords: ["legacy systems", "manual processes", "citizen services", "data silos", "compliance"],
+          painPointKeywords: ["legacy systems", "manual processes", "citizen services", "data silos", "compliance", "ARPA funding"],
           techMaturityMin: 1,
           techMaturityMax: 6,
         },
@@ -385,86 +805,6 @@ export class DatabaseStorage implements IStorage {
           "county government IT modernization",
           "municipal technology upgrade",
           "state agency digital transformation"
-        ],
-      },
-      {
-        verticalName: "healthcare",
-        displayName: "Healthcare",
-        description: "Hospitals, health systems, clinics, and healthcare organizations looking to improve patient care through AI and automation.",
-        isActive: false,
-        targetCriteria: {
-          minPopulation: null,
-          maxPopulation: null,
-          departments: ["Health Information Technology", "Clinical Operations", "Patient Services"],
-          states: [],
-          painPointKeywords: ["EHR integration", "patient scheduling", "claims processing", "HIPAA compliance"],
-          techMaturityMin: 3,
-          techMaturityMax: 7,
-        },
-        searchQueries: [
-          "hospital AI implementation",
-          "healthcare automation solutions",
-          "clinical workflow optimization"
-        ],
-      },
-      {
-        verticalName: "legal",
-        displayName: "Legal",
-        description: "Law firms and corporate legal departments seeking efficiency through document automation and AI-powered research.",
-        isActive: false,
-        targetCriteria: {
-          minPopulation: null,
-          maxPopulation: null,
-          departments: ["Legal Operations", "Document Management", "Research"],
-          states: [],
-          painPointKeywords: ["document review", "contract analysis", "legal research", "case management"],
-          techMaturityMin: 2,
-          techMaturityMax: 6,
-        },
-        searchQueries: [
-          "law firm technology adoption",
-          "legal AI tools",
-          "corporate legal department automation"
-        ],
-      },
-      {
-        verticalName: "financial_services",
-        displayName: "Financial Services",
-        description: "Banks, credit unions, and insurance companies looking to enhance customer experience and operational efficiency.",
-        isActive: false,
-        targetCriteria: {
-          minPopulation: null,
-          maxPopulation: null,
-          departments: ["Operations", "Customer Service", "Risk Management", "Compliance"],
-          states: [],
-          painPointKeywords: ["fraud detection", "customer onboarding", "regulatory compliance", "loan processing"],
-          techMaturityMin: 4,
-          techMaturityMax: 8,
-        },
-        searchQueries: [
-          "banking AI solutions",
-          "credit union technology modernization",
-          "insurance automation"
-        ],
-      },
-      {
-        verticalName: "pe",
-        displayName: "Private Equity",
-        description: "PE firms and their portfolio companies seeking operational improvements and value creation through technology.",
-        isActive: false,
-        targetCriteria: {
-          minPopulation: null,
-          maxPopulation: null,
-          departments: ["Operations", "Technology", "Finance"],
-          states: [],
-          painPointKeywords: ["operational efficiency", "due diligence", "portfolio management", "value creation"],
-          techMaturityMin: 3,
-          techMaturityMax: 7,
-        },
-        searchQueries: [
-          "PE portfolio company technology",
-          "private equity operational improvement",
-          "PE value creation AI"
         ],
       },
     ];
@@ -486,61 +826,262 @@ export class DatabaseStorage implements IStorage {
       enrichmentPromptHints: string;
       complianceFlags?: string[];
     }> = {
-      government: {
-        targetEntityTypes: ["county", "city", "district"],
+      // === ENTERPRISE ===
+      fortune_500: {
+        targetEntityTypes: ["fortune_500_company", "enterprise", "corporation"],
         queryTemplates: [
-          "{entity} {state} government official website",
-          "{entity} {state} {department} contact information phone email"
+          "{entity} CTO CIO Chief Technology Officer contact",
+          "{entity} digital transformation cloud migration news",
+          "{entity} technology leadership VP Engineering"
         ],
-        dataSources: ["tavily_web", "us_census"],
-        valueProposition: "Mission-critical AI operations for emergency services, infrastructure management, and citizen services automation",
-        enrichmentPromptHints: "Look for IT directors, CIOs, County Managers. Focus on budget cycles, modernization initiatives, ARPA funding.",
+        dataSources: ["tavily_web"],
+        valueProposition: "Enterprise-scale AI transformation, cloud migration acceleration, and digital operations modernization",
+        enrichmentPromptHints: "PRIORITY: CTO, CIO, Chief Digital Officer, VP Engineering, VP IT. Focus on SEC filings for IT budget, digital transformation initiatives, cloud migration projects, AI adoption programs. Check earnings calls for technology investments.",
       },
-      healthcare: {
-        targetEntityTypes: ["hospital", "health_system", "clinic", "medical_center"],
+      mid_market: {
+        targetEntityTypes: ["company", "enterprise"],
         queryTemplates: [
-          "{entity} {state} hospital contact information",
-          "{entity} {state} healthcare IT leadership CIO",
-          "{entity} {state} hospital administration"
+          "{entity} CTO VP Engineering technology leader",
+          "{entity} digital transformation IT modernization",
+          "{entity} technology team leadership"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Scalable technology solutions for fast-growing companies modernizing operations",
+        enrichmentPromptHints: "Look for CTO, VP Engineering, IT Director, Head of Technology. Focus on growth challenges, system integration needs, scaling infrastructure.",
+      },
+
+      // === PROFESSIONAL SERVICES ===
+      management_consulting: {
+        targetEntityTypes: ["consulting_firm", "management_consultancy"],
+        queryTemplates: [
+          "{entity} partner technology practice digital leader",
+          "{entity} CTO Chief Digital Officer contact",
+          "{entity} digital practice innovation leader"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "AI-powered consulting delivery, knowledge management, and client engagement platforms",
+        enrichmentPromptHints: "PRIORITY: Partner - Technology/Digital, CTO, Chief Digital Officer, Director of Technology Practice. Focus on practice growth, digital service offerings, client delivery platforms, thought leadership.",
+      },
+      it_consulting: {
+        targetEntityTypes: ["systems_integrator", "it_consulting_firm"],
+        queryTemplates: [
+          "{entity} practice lead delivery director CTO",
+          "{entity} technology consulting leadership",
+          "{entity} solutions architect partner"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Implementation acceleration tools, delivery automation, and technical expertise amplification",
+        enrichmentPromptHints: "Look for Practice Lead, Delivery Director, CTO, Solutions Architect, Partner. Focus on implementation efficiency, client delivery, technical capabilities.",
+      },
+      big4_accounting: {
+        targetEntityTypes: ["accounting_firm", "professional_services"],
+        queryTemplates: [
+          "{entity} technology leader innovation partner",
+          "{entity} audit innovation tax technology",
+          "{entity} digital transformation advisory"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Audit automation, tax technology, and advisory practice AI enablement",
+        enrichmentPromptHints: "Look for Innovation Partner, Technology Leader, Chief Digital Officer, Audit Innovation Lead, Tax Technology Director. Focus on audit automation, regulatory technology, advisory tools.",
+        complianceFlags: ["SOC2"],
+      },
+
+      // === TECHNOLOGY ===
+      saas_companies: {
+        targetEntityTypes: ["saas_company", "software_company", "startup"],
+        queryTemplates: [
+          "{entity} CTO VP Engineering Head of Platform",
+          "{entity} engineering leadership technology team",
+          "{entity} infrastructure DevOps platform"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Platform reliability, engineering velocity, and infrastructure automation for scale",
+        enrichmentPromptHints: "PRIORITY: CTO, VP Engineering, Head of Platform, VP Infrastructure, Director of DevOps. Focus on scaling challenges, engineering hiring, infrastructure investments, platform reliability.",
+      },
+      cybersecurity: {
+        targetEntityTypes: ["cybersecurity_company", "security_vendor"],
+        queryTemplates: [
+          "{entity} CISO CTO security leadership",
+          "{entity} threat research security engineering",
+          "{entity} product security technology"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Security automation, threat intelligence, and SOC efficiency solutions",
+        enrichmentPromptHints: "Look for CISO, CTO, VP Security Engineering, Head of Threat Research, Chief Security Architect. Focus on threat detection, security automation, vulnerability management.",
+        complianceFlags: ["SOC2"],
+      },
+
+      // === FINANCIAL SERVICES ===
+      investment_banks: {
+        targetEntityTypes: ["investment_bank", "financial_institution"],
+        queryTemplates: [
+          "{entity} CTO technology MD managing director",
+          "{entity} trading technology risk systems",
+          "{entity} digital banking technology leadership"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Trading systems optimization, risk analytics, and regulatory technology automation",
+        enrichmentPromptHints: "PRIORITY: CTO, Managing Director - Technology, Head of Trading Technology, Chief Digital Officer. Focus on trading systems, risk platforms, regulatory compliance, client-facing technology.",
+        complianceFlags: ["SOC2", "PCI"],
+      },
+      hedge_funds: {
+        targetEntityTypes: ["hedge_fund", "asset_manager", "investment_firm"],
+        queryTemplates: [
+          "{entity} CTO technology head quantitative",
+          "{entity} trading infrastructure data engineering",
+          "{entity} investment technology leadership"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Alpha generation infrastructure, data platform optimization, and quantitative tools",
+        enrichmentPromptHints: "Look for CTO, Head of Technology, Chief Data Officer, Quantitative Lead, Head of Trading Infrastructure. Focus on data infrastructure, alpha generation tools, trading systems.",
+      },
+      fintech: {
+        targetEntityTypes: ["fintech_company", "payments_company", "neobank"],
+        queryTemplates: [
+          "{entity} CTO VP Engineering technology leadership",
+          "{entity} payments infrastructure platform",
+          "{entity} engineering team technology"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Payment processing optimization, compliance automation, and banking API infrastructure",
+        enrichmentPromptHints: "PRIORITY: CTO, VP Engineering, Head of Platform, VP Infrastructure. Focus on payment processing, compliance challenges, banking integrations, API infrastructure.",
+        complianceFlags: ["SOC2", "PCI"],
+      },
+      financial_services: {
+        targetEntityTypes: ["bank", "credit_union", "insurance"],
+        queryTemplates: [
+          "{entity} {state} CIO technology leader",
+          "{entity} digital transformation core banking",
+          "{entity} technology modernization IT"
+        ],
+        dataSources: ["tavily_web", "fdic_banks"],
+        valueProposition: "Core banking modernization, fraud detection AI, and customer experience automation",
+        enrichmentPromptHints: "Look for CIO, CTO, VP Technology, Chief Digital Officer. Focus on core banking modernization, fraud detection, regulatory compliance, digital customer experience.",
+        complianceFlags: ["SOC2", "PCI"],
+      },
+
+      // === PRIVATE CAPITAL ===
+      pe: {
+        targetEntityTypes: ["pe_firm", "private_equity", "portfolio_company"],
+        queryTemplates: [
+          "{entity} operating partner technology advisor",
+          "{entity} portfolio company CTO",
+          "{entity} value creation technology"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Portfolio value creation, operational efficiency AI, and due diligence automation",
+        enrichmentPromptHints: "PRIORITY: Operating Partner, Technology Advisor, VP Operations, Portfolio Company CTO. Focus on value creation initiatives, operational improvements, technology-driven efficiency.",
+      },
+      venture_capital: {
+        targetEntityTypes: ["vc_firm", "venture_capital", "investment_fund"],
+        queryTemplates: [
+          "{entity} operating partner CTO in residence",
+          "{entity} platform team technology",
+          "{entity} portfolio support technology"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Portfolio technology support, technical due diligence, and platform services",
+        enrichmentPromptHints: "Look for Operating Partner, CTO-in-Residence, Platform Lead, VP Portfolio Support. Focus on portfolio company support, technical due diligence capabilities, platform services.",
+      },
+
+      // === HEALTHCARE ===
+      healthcare: {
+        targetEntityTypes: ["hospital", "health_system", "medical_center"],
+        queryTemplates: [
+          "{entity} CIO CMIO health IT leadership",
+          "{entity} clinical informatics technology",
+          "{entity} digital health transformation"
         ],
         dataSources: ["tavily_web", "cms_hospitals"],
-        valueProposition: "Clinical workflow automation, predictive staffing, HIPAA-compliant AI systems, and healthcare analytics",
-        enrichmentPromptHints: "Look for CIOs, CMIOs, VP of IT, Chief Digital Officers. Focus on EHR integration, telehealth, AI adoption.",
+        valueProposition: "Clinical workflow automation, EHR optimization, and HIPAA-compliant AI solutions",
+        enrichmentPromptHints: "PRIORITY: CIO, CMIO, VP Health IT, Chief Digital Officer, Director of Clinical Informatics. Focus on EHR integration, clinical AI, telehealth, patient engagement.",
         complianceFlags: ["HIPAA"],
       },
+      health_tech: {
+        targetEntityTypes: ["health_tech_company", "digital_health", "healthtech_startup"],
+        queryTemplates: [
+          "{entity} CTO VP Engineering technology",
+          "{entity} clinical engineering product",
+          "{entity} healthcare AI technology team"
+        ],
+        dataSources: ["tavily_web", "crunchbase"],
+        valueProposition: "Clinical validation support, HIPAA engineering, and healthcare integration platforms",
+        enrichmentPromptHints: "Look for CTO, VP Engineering, Chief Medical Officer, Head of Product, VP Clinical. Focus on clinical validation, HIPAA compliance, EHR integrations, patient engagement.",
+        complianceFlags: ["HIPAA", "SOC2"],
+      },
+
+      // === LEGAL ===
       legal: {
         targetEntityTypes: ["law_firm", "corporate_legal"],
         queryTemplates: [
-          "{entity} law firm contact information",
-          "{entity} {state} law firm leadership partners",
-          "{entity} legal technology"
+          "{entity} CIO innovation partner technology",
+          "{entity} legal technology e-discovery",
+          "{entity} practice management technology"
         ],
         dataSources: ["tavily_web", "state_bar"],
-        valueProposition: "E-discovery automation, knowledge management AI, contract analysis, and legal research acceleration",
-        enrichmentPromptHints: "Look for Managing Partners, CIO, Director of IT, Innovation Partners. Focus on AmLaw rankings, practice areas, tech initiatives.",
+        valueProposition: "E-discovery automation, contract AI, and practice management optimization",
+        enrichmentPromptHints: "PRIORITY: CIO, Innovation Partner, Director of IT, Legal Technology Director, Managing Partner. Focus on AmLaw rankings, e-discovery needs, contract management, legal research tools.",
       },
-      financial_services: {
-        targetEntityTypes: ["bank", "credit_union", "insurance", "fintech"],
+
+      // === EDUCATION ===
+      higher_education: {
+        targetEntityTypes: ["university", "college", "higher_education"],
         queryTemplates: [
-          "{entity} {state} bank contact information",
-          "{entity} {state} financial institution leadership",
-          "{entity} CTO CIO technology"
+          "{entity} CIO VP IT technology leadership",
+          "{entity} academic technology research computing",
+          "{entity} campus technology modernization"
         ],
-        dataSources: ["tavily_web", "fdic_banks"],
-        valueProposition: "Fraud detection AI, risk modeling, regulatory compliance automation, and customer experience intelligence",
-        enrichmentPromptHints: "Look for CTOs, CIOs, Chief Digital Officers, VP of Technology. Focus on digital transformation, fraud prevention, compliance.",
-        complianceFlags: ["SOC2", "PCI"],
+        dataSources: ["tavily_web"],
+        valueProposition: "Campus technology modernization, research computing, and student experience platforms",
+        enrichmentPromptHints: "Look for CIO, VP IT, Director of Academic Technology, Head of Research Computing. Focus on student systems, research infrastructure, campus technology, LMS integration.",
       },
-      pe: {
-        targetEntityTypes: ["pe_firm", "portfolio_company", "investment_firm"],
+      k12_education: {
+        targetEntityTypes: ["school_district", "education_system"],
         queryTemplates: [
-          "{entity} private equity portfolio companies",
-          "{entity} investment firm contact",
-          "{entity} operating partners"
+          "{entity} {state} technology director CTO",
+          "{entity} education technology IT",
+          "{entity} district systems modernization"
         ],
-        dataSources: ["tavily_web", "crunchbase"],
-        valueProposition: "Portfolio intelligence, operational efficiency AI, due diligence automation, and value creation analytics",
-        enrichmentPromptHints: "Look for Operating Partners, CTOs of portfolio companies, VP of Operations. Focus on recent acquisitions, operational improvements.",
+        dataSources: ["tavily_web"],
+        valueProposition: "Educational technology integration, student information systems, and district operations automation",
+        enrichmentPromptHints: "Look for Technology Director, CTO, IT Director, Director of Information Systems. Focus on student data systems, educational technology, administrative automation.",
+      },
+
+      // === INDUSTRIAL ===
+      manufacturing: {
+        targetEntityTypes: ["manufacturer", "industrial_company"],
+        queryTemplates: [
+          "{entity} CTO VP Technology digital manufacturing",
+          "{entity} Industry 4.0 IoT operations",
+          "{entity} smart factory technology leadership"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Industry 4.0 implementation, IoT platform optimization, and operational technology integration",
+        enrichmentPromptHints: "Look for CTO, VP Technology, Head of Digital Manufacturing, Director of OT, VP Operations Technology. Focus on Industry 4.0, IoT, predictive maintenance, supply chain.",
+      },
+      energy_utilities: {
+        targetEntityTypes: ["utility", "energy_company", "power_company"],
+        queryTemplates: [
+          "{entity} CIO CTO technology leadership",
+          "{entity} grid modernization digital",
+          "{entity} smart grid SCADA technology"
+        ],
+        dataSources: ["tavily_web"],
+        valueProposition: "Grid modernization, smart metering, and operational technology security",
+        enrichmentPromptHints: "Look for CIO, CTO, VP Technology, Head of Grid Operations, Director of Digital. Focus on grid modernization, smart metering, renewable integration, SCADA/OT security.",
+      },
+
+      // === GOVERNMENT ===
+      government: {
+        targetEntityTypes: ["county", "city", "district", "municipality"],
+        queryTemplates: [
+          "{entity} {state} IT director CIO technology",
+          "{entity} {state} {department} contact phone email",
+          "{entity} {state} digital transformation modernization"
+        ],
+        dataSources: ["tavily_web", "us_census"],
+        valueProposition: "Citizen services automation, legacy system modernization, and operational efficiency AI",
+        enrichmentPromptHints: "PRIORITY: IT Director, CIO, County Manager, Department Head, Technology Director. Focus on ARPA funding, budget cycles, legacy system replacement, citizen services modernization.",
       },
     };
 
@@ -560,6 +1101,560 @@ export class DatabaseStorage implements IStorage {
         console.log(`[Storage] Seeded playbook config for ICP: ${profile.displayName}`);
       }
     }
+  }
+
+  async syncIcpProfiles(): Promise<{ created: number; updated: number }> {
+    const existing = await this.getIcpProfiles();
+    const existingByVertical = new Map(existing.map(p => [p.verticalName, p]));
+
+    let created = 0;
+    let updated = 0;
+
+    // Define all default ICPs with their playbook configs
+    const defaultIcps: Array<InsertIcpProfile & { playbookConfig?: any }> = [
+      // === ENTERPRISE ===
+      {
+        verticalName: "fortune_500",
+        displayName: "Fortune 500",
+        description: "C-level and VP technology leaders at America's largest corporations driving digital transformation, cloud migration, and AI adoption initiatives.",
+        isActive: true,
+        targetCriteria: {
+          minPopulation: 10000,
+          maxPopulation: null,
+          departments: ["Technology", "IT", "Digital", "Engineering", "Innovation"],
+          states: [],
+          painPointKeywords: ["digital transformation", "cloud migration", "legacy modernization", "AI adoption", "data analytics", "cybersecurity"],
+          techMaturityMin: 5,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["Fortune 500 CTO digital transformation", "enterprise cloud migration strategy", "corporate AI adoption initiatives"],
+        playbookConfig: {
+          targetEntityTypes: ["fortune_500_company", "enterprise", "corporation"],
+          queryTemplates: ["{entity} CTO CIO Chief Technology Officer contact", "{entity} digital transformation cloud migration news", "{entity} technology leadership VP Engineering"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Enterprise-scale AI transformation, cloud migration acceleration, and digital operations modernization",
+          enrichmentPromptHints: "PRIORITY: CTO, CIO, Chief Digital Officer, VP Engineering, VP IT. Focus on SEC filings for IT budget, digital transformation initiatives, cloud migration projects, AI adoption programs.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "mid_market",
+        displayName: "Mid-Market Enterprise",
+        description: "Technology decision makers at companies with 500-5000 employees looking to scale their operations and modernize infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 500,
+          maxPopulation: 5000,
+          departments: ["IT", "Technology", "Operations", "Engineering"],
+          states: [],
+          painPointKeywords: ["scaling challenges", "system integration", "process automation", "growth technology"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["mid-market company CTO IT director", "growing company technology modernization", "SMB digital transformation"],
+        playbookConfig: {
+          targetEntityTypes: ["company", "enterprise"],
+          queryTemplates: ["{entity} CTO VP Engineering technology leader", "{entity} digital transformation IT modernization", "{entity} technology team leadership"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Scalable technology solutions for fast-growing companies modernizing operations",
+          enrichmentPromptHints: "Look for CTO, VP Engineering, IT Director, Head of Technology. Focus on growth challenges, system integration needs, scaling infrastructure.",
+          complianceFlags: [],
+        },
+      },
+      // === PROFESSIONAL SERVICES ===
+      {
+        verticalName: "management_consulting",
+        displayName: "Management Consulting (Top 20)",
+        description: "Partners and technology practice leaders at McKinsey, BCG, Bain, and other top-tier consulting firms building digital and AI capabilities.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology Practice", "Digital Practice", "Analytics Practice", "Operations"],
+          states: [],
+          painPointKeywords: ["client delivery", "knowledge management", "practice growth", "AI offerings", "digital consulting"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["McKinsey BCG Bain technology partner", "management consulting digital practice", "consulting firm AI capabilities"],
+        playbookConfig: {
+          targetEntityTypes: ["consulting_firm", "management_consultancy"],
+          queryTemplates: ["{entity} partner technology practice digital leader", "{entity} CTO Chief Digital Officer contact", "{entity} digital practice innovation leader"],
+          dataSources: ["tavily_web"],
+          valueProposition: "AI-powered consulting delivery, knowledge management, and client engagement platforms",
+          enrichmentPromptHints: "PRIORITY: Partner - Technology/Digital, CTO, Chief Digital Officer, Director of Technology Practice. Focus on practice growth, digital service offerings, client delivery platforms.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "it_consulting",
+        displayName: "IT Consulting & Systems Integrators",
+        description: "Practice leads and delivery directors at technology consulting firms and systems integrators implementing enterprise solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Delivery", "Solutions", "Practice Management", "Technology"],
+          states: [],
+          painPointKeywords: ["implementation efficiency", "client delivery", "technical expertise", "automation"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["systems integrator practice lead", "IT consulting delivery director", "technology consulting CTO"],
+        playbookConfig: {
+          targetEntityTypes: ["systems_integrator", "it_consulting_firm"],
+          queryTemplates: ["{entity} practice lead delivery director CTO", "{entity} technology consulting leadership", "{entity} solutions architect partner"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Implementation acceleration tools, delivery automation, and technical expertise amplification",
+          enrichmentPromptHints: "Look for Practice Lead, Delivery Director, CTO, Solutions Architect, Partner. Focus on implementation efficiency, client delivery, technical capabilities.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "big4_accounting",
+        displayName: "Big 4 Accounting Firms",
+        description: "Technology and digital leaders at Deloitte, PwC, EY, and KPMG driving innovation in audit, tax, and advisory practices.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Innovation", "Technology", "Digital", "Audit Innovation", "Tax Technology"],
+          states: [],
+          painPointKeywords: ["audit automation", "tax technology", "advisory tools", "AI compliance"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["Deloitte PwC EY KPMG technology leader", "Big 4 audit innovation", "accounting firm digital transformation"],
+        playbookConfig: {
+          targetEntityTypes: ["accounting_firm", "professional_services"],
+          queryTemplates: ["{entity} technology leader innovation partner", "{entity} audit innovation tax technology", "{entity} digital transformation advisory"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Audit automation, tax technology, and advisory practice AI enablement",
+          enrichmentPromptHints: "Look for Innovation Partner, Technology Leader, Chief Digital Officer, Audit Innovation Lead, Tax Technology Director.",
+          complianceFlags: ["SOC2"],
+        },
+      },
+      // === TECHNOLOGY ===
+      {
+        verticalName: "saas_companies",
+        displayName: "SaaS Companies (Series B+)",
+        description: "CTOs and VPs of Engineering at growth-stage SaaS companies scaling their platform, infrastructure, and engineering teams.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 50,
+          maxPopulation: 2000,
+          departments: ["Engineering", "Platform", "Infrastructure", "DevOps"],
+          states: [],
+          painPointKeywords: ["scaling infrastructure", "engineering velocity", "platform reliability", "DevOps automation"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["SaaS company CTO VP Engineering", "Series B startup technology leader", "growth stage SaaS infrastructure"],
+        playbookConfig: {
+          targetEntityTypes: ["saas_company", "software_company", "startup"],
+          queryTemplates: ["{entity} CTO VP Engineering Head of Platform", "{entity} engineering leadership technology team", "{entity} infrastructure DevOps platform"],
+          dataSources: ["tavily_web", "crunchbase"],
+          valueProposition: "Platform reliability, engineering velocity, and infrastructure automation for scale",
+          enrichmentPromptHints: "PRIORITY: CTO, VP Engineering, Head of Platform, VP Infrastructure, Director of DevOps. Focus on scaling challenges, engineering hiring, infrastructure investments.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "cybersecurity",
+        displayName: "Cybersecurity Companies",
+        description: "CISOs, CTOs, and security leaders at cybersecurity vendors and enterprise security teams building next-gen defenses.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Security Engineering", "Threat Research", "Product Security", "Security Operations"],
+          states: [],
+          painPointKeywords: ["threat detection", "security automation", "SOC efficiency", "vulnerability management"],
+          techMaturityMin: 8,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["cybersecurity company CISO CTO", "enterprise security leader", "security vendor technology"],
+        playbookConfig: {
+          targetEntityTypes: ["cybersecurity_company", "security_vendor"],
+          queryTemplates: ["{entity} CISO CTO security leadership", "{entity} threat research security engineering", "{entity} product security technology"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Security automation, threat intelligence, and SOC efficiency solutions",
+          enrichmentPromptHints: "Look for CISO, CTO, VP Security Engineering, Head of Threat Research, Chief Security Architect.",
+          complianceFlags: ["SOC2"],
+        },
+      },
+      // === FINANCIAL SERVICES ===
+      {
+        verticalName: "investment_banks",
+        displayName: "Investment Banks",
+        description: "Technology leaders at bulge bracket and middle-market investment banks driving trading systems, risk platforms, and digital transformation.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Trading Technology", "Risk Technology", "Digital Banking"],
+          states: [],
+          painPointKeywords: ["trading systems", "risk analytics", "regulatory technology", "client platforms"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["investment bank CTO technology MD", "Goldman Morgan JPMorgan technology", "banking trading systems technology"],
+        playbookConfig: {
+          targetEntityTypes: ["investment_bank", "financial_institution"],
+          queryTemplates: ["{entity} CTO technology MD managing director", "{entity} trading technology risk systems", "{entity} digital banking technology leadership"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Trading systems optimization, risk analytics, and regulatory technology automation",
+          enrichmentPromptHints: "PRIORITY: CTO, Managing Director - Technology, Head of Trading Technology, Chief Digital Officer.",
+          complianceFlags: ["SOC2", "PCI"],
+        },
+      },
+      {
+        verticalName: "hedge_funds",
+        displayName: "Hedge Funds & Asset Managers",
+        description: "CTOs and technology heads at quantitative and discretionary investment firms building trading infrastructure and analytics platforms.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Quantitative Research", "Trading Infrastructure", "Data"],
+          states: [],
+          painPointKeywords: ["alpha generation", "data infrastructure", "trading systems", "quantitative tools"],
+          techMaturityMin: 8,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["hedge fund CTO technology head", "asset manager quantitative technology", "investment firm data infrastructure"],
+        playbookConfig: {
+          targetEntityTypes: ["hedge_fund", "asset_manager", "investment_firm"],
+          queryTemplates: ["{entity} CTO technology head quantitative", "{entity} trading infrastructure data engineering", "{entity} investment technology leadership"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Alpha generation infrastructure, data platform optimization, and quantitative tools",
+          enrichmentPromptHints: "Look for CTO, Head of Technology, Chief Data Officer, Quantitative Lead, Head of Trading Infrastructure.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "fintech",
+        displayName: "Fintech Companies",
+        description: "Technology leaders at fintech startups and scale-ups disrupting banking, payments, lending, and financial infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Engineering", "Platform", "Product", "Data"],
+          states: [],
+          painPointKeywords: ["payment processing", "lending automation", "compliance technology", "banking APIs"],
+          techMaturityMin: 7,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["fintech CTO VP Engineering", "payments company technology leader", "neobank infrastructure"],
+        playbookConfig: {
+          targetEntityTypes: ["fintech_company", "payments_company", "neobank"],
+          queryTemplates: ["{entity} CTO VP Engineering technology leadership", "{entity} payments infrastructure platform", "{entity} engineering team technology"],
+          dataSources: ["tavily_web", "crunchbase"],
+          valueProposition: "Payment processing optimization, compliance automation, and banking API infrastructure",
+          enrichmentPromptHints: "PRIORITY: CTO, VP Engineering, Head of Platform, VP Infrastructure. Focus on payment processing, compliance challenges, banking integrations.",
+          complianceFlags: ["SOC2", "PCI"],
+        },
+      },
+      {
+        verticalName: "financial_services",
+        displayName: "Banks & Credit Unions",
+        description: "CIOs and technology leaders at regional banks, credit unions, and community financial institutions modernizing core systems.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Customer Service", "Risk Management", "Compliance"],
+          states: [],
+          painPointKeywords: ["fraud detection", "customer onboarding", "regulatory compliance", "loan processing", "core banking"],
+          techMaturityMin: 4,
+          techMaturityMax: 8,
+        },
+        searchQueries: ["regional bank CIO technology", "credit union digital transformation", "community bank modernization"],
+        playbookConfig: {
+          targetEntityTypes: ["bank", "credit_union", "insurance"],
+          queryTemplates: ["{entity} {state} CIO technology leader", "{entity} digital transformation core banking", "{entity} technology modernization IT"],
+          dataSources: ["tavily_web", "fdic_banks"],
+          valueProposition: "Core banking modernization, fraud detection AI, and customer experience automation",
+          enrichmentPromptHints: "Look for CIO, CTO, VP Technology, Chief Digital Officer. Focus on core banking modernization, fraud detection, regulatory compliance.",
+          complianceFlags: ["SOC2", "PCI"],
+        },
+      },
+      // === PRIVATE CAPITAL ===
+      {
+        verticalName: "pe",
+        displayName: "Private Equity Firms",
+        description: "Operating Partners and technology advisors at PE firms driving value creation and operational improvements across portfolio companies.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Operations", "Technology", "Finance", "Portfolio Operations"],
+          states: [],
+          painPointKeywords: ["operational efficiency", "due diligence", "portfolio management", "value creation", "operational DD"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["PE operating partner technology", "private equity value creation", "portfolio company CTO"],
+        playbookConfig: {
+          targetEntityTypes: ["pe_firm", "private_equity", "portfolio_company"],
+          queryTemplates: ["{entity} operating partner technology advisor", "{entity} portfolio company CTO", "{entity} value creation technology"],
+          dataSources: ["tavily_web", "crunchbase"],
+          valueProposition: "Portfolio value creation, operational efficiency AI, and due diligence automation",
+          enrichmentPromptHints: "PRIORITY: Operating Partner, Technology Advisor, VP Operations, Portfolio Company CTO.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "venture_capital",
+        displayName: "Venture Capital Firms",
+        description: "Operating partners, CTOs-in-residence, and platform teams at VC firms supporting portfolio company technology decisions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Platform", "Operations", "Portfolio Support", "Technology"],
+          states: [],
+          painPointKeywords: ["portfolio support", "technical due diligence", "founder support", "platform services"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["VC firm operating partner CTO", "venture capital platform team", "VC portfolio technology"],
+        playbookConfig: {
+          targetEntityTypes: ["vc_firm", "venture_capital", "investment_fund"],
+          queryTemplates: ["{entity} operating partner CTO in residence", "{entity} platform team technology", "{entity} portfolio support technology"],
+          dataSources: ["tavily_web", "crunchbase"],
+          valueProposition: "Portfolio technology support, technical due diligence, and platform services",
+          enrichmentPromptHints: "Look for Operating Partner, CTO-in-Residence, Platform Lead, VP Portfolio Support.",
+          complianceFlags: [],
+        },
+      },
+      // === HEALTHCARE ===
+      {
+        verticalName: "healthcare",
+        displayName: "Hospital Systems",
+        description: "CIOs, CMIOs, and health IT leaders at hospitals and health systems implementing clinical systems and patient care technology.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Health Information Technology", "Clinical Operations", "Patient Services", "Digital Health"],
+          states: [],
+          painPointKeywords: ["EHR integration", "patient scheduling", "claims processing", "HIPAA compliance", "clinical AI"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["hospital CIO CMIO health IT", "health system technology leader", "clinical informatics director"],
+        playbookConfig: {
+          targetEntityTypes: ["hospital", "health_system", "medical_center"],
+          queryTemplates: ["{entity} CIO CMIO health IT leadership", "{entity} clinical informatics technology", "{entity} digital health transformation"],
+          dataSources: ["tavily_web", "cms_hospitals"],
+          valueProposition: "Clinical workflow automation, EHR optimization, and HIPAA-compliant AI solutions",
+          enrichmentPromptHints: "PRIORITY: CIO, CMIO, VP Health IT, Chief Digital Officer, Director of Clinical Informatics.",
+          complianceFlags: ["HIPAA"],
+        },
+      },
+      {
+        verticalName: "health_tech",
+        displayName: "Health Tech Companies",
+        description: "CTOs and engineering leaders at digital health startups and health technology vendors building clinical and patient-facing solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Engineering", "Product", "Clinical", "Data Science"],
+          states: [],
+          painPointKeywords: ["clinical validation", "HIPAA engineering", "patient engagement", "EHR integration"],
+          techMaturityMin: 6,
+          techMaturityMax: 10,
+        },
+        searchQueries: ["health tech CTO VP Engineering", "digital health startup technology", "healthcare AI company"],
+        playbookConfig: {
+          targetEntityTypes: ["health_tech_company", "digital_health", "healthtech_startup"],
+          queryTemplates: ["{entity} CTO VP Engineering technology", "{entity} clinical engineering product", "{entity} healthcare AI technology team"],
+          dataSources: ["tavily_web", "crunchbase"],
+          valueProposition: "Clinical validation support, HIPAA engineering, and healthcare integration platforms",
+          enrichmentPromptHints: "Look for CTO, VP Engineering, Chief Medical Officer, Head of Product, VP Clinical.",
+          complianceFlags: ["HIPAA", "SOC2"],
+        },
+      },
+      // === LEGAL ===
+      {
+        verticalName: "legal",
+        displayName: "Law Firms (AmLaw 200)",
+        description: "CIOs, innovation partners, and legal tech leaders at major law firms implementing AI for e-discovery, research, and practice management.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Legal Operations", "Document Management", "Research", "Innovation", "IT"],
+          states: [],
+          painPointKeywords: ["document review", "contract analysis", "legal research", "case management", "e-discovery"],
+          techMaturityMin: 2,
+          techMaturityMax: 6,
+        },
+        searchQueries: ["AmLaw law firm CIO innovation", "legal technology director", "law firm e-discovery AI"],
+        playbookConfig: {
+          targetEntityTypes: ["law_firm", "corporate_legal"],
+          queryTemplates: ["{entity} CIO innovation partner technology", "{entity} legal technology e-discovery", "{entity} practice management technology"],
+          dataSources: ["tavily_web", "state_bar"],
+          valueProposition: "E-discovery automation, contract AI, and practice management optimization",
+          enrichmentPromptHints: "PRIORITY: CIO, Innovation Partner, Director of IT, Legal Technology Director, Managing Partner.",
+          complianceFlags: [],
+        },
+      },
+      // === EDUCATION ===
+      {
+        verticalName: "higher_education",
+        displayName: "Higher Education (Top 200)",
+        description: "CIOs and IT directors at universities and colleges modernizing campus technology, student systems, and research infrastructure.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Information Technology", "Academic Technology", "Research Computing", "Student Systems"],
+          states: [],
+          painPointKeywords: ["student information systems", "research computing", "campus technology", "LMS integration"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["university CIO IT director", "higher education technology leader", "campus technology modernization"],
+        playbookConfig: {
+          targetEntityTypes: ["university", "college", "higher_education"],
+          queryTemplates: ["{entity} CIO VP IT technology leadership", "{entity} academic technology research computing", "{entity} campus technology modernization"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Campus technology modernization, research computing, and student experience platforms",
+          enrichmentPromptHints: "Look for CIO, VP IT, Director of Academic Technology, Head of Research Computing.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "k12_education",
+        displayName: "K-12 School Districts",
+        description: "Technology directors and CIOs at large school districts implementing educational technology and administrative systems.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: 10000,
+          maxPopulation: null,
+          departments: ["Technology", "Information Systems", "Curriculum Technology", "Operations"],
+          states: [],
+          painPointKeywords: ["student data", "educational technology", "district systems", "learning management"],
+          techMaturityMin: 2,
+          techMaturityMax: 5,
+        },
+        searchQueries: ["school district CTO technology director", "K-12 education technology", "school district IT modernization"],
+        playbookConfig: {
+          targetEntityTypes: ["school_district", "education_system"],
+          queryTemplates: ["{entity} {state} technology director CTO", "{entity} education technology IT", "{entity} district systems modernization"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Educational technology integration, student information systems, and district operations automation",
+          enrichmentPromptHints: "Look for Technology Director, CTO, IT Director, Director of Information Systems.",
+          complianceFlags: [],
+        },
+      },
+      // === INDUSTRIAL ===
+      {
+        verticalName: "manufacturing",
+        displayName: "Manufacturing",
+        description: "Technology leaders at manufacturing companies implementing Industry 4.0, IoT, and operational technology solutions.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Operations Technology", "Digital Manufacturing", "IT/OT"],
+          states: [],
+          painPointKeywords: ["Industry 4.0", "IoT", "operational technology", "predictive maintenance", "supply chain"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["manufacturing CTO digital transformation", "Industry 4.0 technology leader", "smart factory technology"],
+        playbookConfig: {
+          targetEntityTypes: ["manufacturer", "industrial_company"],
+          queryTemplates: ["{entity} CTO VP Technology digital manufacturing", "{entity} Industry 4.0 IoT operations", "{entity} smart factory technology leadership"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Industry 4.0 implementation, IoT platform optimization, and operational technology integration",
+          enrichmentPromptHints: "Look for CTO, VP Technology, Head of Digital Manufacturing, Director of OT, VP Operations Technology.",
+          complianceFlags: [],
+        },
+      },
+      {
+        verticalName: "energy_utilities",
+        displayName: "Energy & Utilities",
+        description: "Technology and digital leaders at energy companies and utilities modernizing grid infrastructure and operations.",
+        isActive: false,
+        targetCriteria: {
+          minPopulation: null,
+          maxPopulation: null,
+          departments: ["Technology", "Grid Operations", "Digital", "SCADA/OT"],
+          states: [],
+          painPointKeywords: ["grid modernization", "smart metering", "renewable integration", "SCADA security"],
+          techMaturityMin: 3,
+          techMaturityMax: 7,
+        },
+        searchQueries: ["utility CIO technology leader", "energy company digital transformation", "smart grid technology"],
+        playbookConfig: {
+          targetEntityTypes: ["utility", "energy_company", "power_company"],
+          queryTemplates: ["{entity} CIO CTO technology leadership", "{entity} grid modernization digital", "{entity} smart grid SCADA technology"],
+          dataSources: ["tavily_web"],
+          valueProposition: "Grid modernization, smart metering, and operational technology security",
+          enrichmentPromptHints: "Look for CIO, CTO, VP Technology, Head of Grid Operations, Director of Digital.",
+          complianceFlags: [],
+        },
+      },
+      // === GOVERNMENT ===
+      {
+        verticalName: "government",
+        displayName: "Government",
+        description: "IT directors, CIOs, and department heads at counties, municipalities, and state agencies modernizing citizen services and operations.",
+        isActive: true,
+        targetCriteria: {
+          minPopulation: 50000,
+          maxPopulation: null,
+          departments: ["County Administration", "Information Technology", "Finance & Budget", "Public Works"],
+          states: [],
+          painPointKeywords: ["legacy systems", "manual processes", "citizen services", "data silos", "compliance", "ARPA funding"],
+          techMaturityMin: 1,
+          techMaturityMax: 6,
+        },
+        searchQueries: ["county government IT modernization", "municipal technology upgrade", "state agency digital transformation"],
+        playbookConfig: {
+          targetEntityTypes: ["county", "city", "district", "municipality"],
+          queryTemplates: ["{entity} {state} IT director CIO technology", "{entity} {state} {department} contact phone email", "{entity} {state} digital transformation modernization"],
+          dataSources: ["tavily_web", "us_census"],
+          valueProposition: "Citizen services automation, legacy system modernization, and operational efficiency AI",
+          enrichmentPromptHints: "PRIORITY: IT Director, CIO, County Manager, Department Head, Technology Director. Focus on ARPA funding, budget cycles, legacy system replacement.",
+          complianceFlags: [],
+        },
+      },
+    ];
+
+    for (const icpData of defaultIcps) {
+      const existingProfile = existingByVertical.get(icpData.verticalName);
+      const { playbookConfig, ...icpInsertData } = icpData;
+
+      if (existingProfile) {
+        // Update existing profile with new data but preserve isActive state
+        await this.updateIcpProfile(existingProfile.id, {
+          displayName: icpInsertData.displayName,
+          description: icpInsertData.description,
+          targetCriteria: icpInsertData.targetCriteria,
+          searchQueries: icpInsertData.searchQueries,
+          playbookConfig: playbookConfig,
+        });
+        updated++;
+        console.log(`[Storage] Updated ICP: ${icpData.displayName}`);
+      } else {
+        // Create new profile
+        const [newProfile] = await db.insert(icpProfiles).values({
+          ...icpInsertData,
+          playbookConfig: playbookConfig,
+        }).returning();
+        created++;
+        console.log(`[Storage] Created ICP: ${icpData.displayName}`);
+      }
+    }
+
+    return { created, updated };
   }
 
   // Email Sequences CRUD

@@ -274,7 +274,7 @@ export default function ScrapePage() {
 
         <TabsContent value="government" className="mt-6">
           {activeJob && (
-            <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 mb-6">
+            <Card className="border-primary/30 bg-primary/5 mb-6">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />

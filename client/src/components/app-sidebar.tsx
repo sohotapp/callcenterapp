@@ -6,7 +6,7 @@ import {
   Download,
   RefreshCw,
   Settings,
-  Target,
+  Crosshair,
   BarChart3,
 } from "lucide-react";
 import {
@@ -41,7 +41,7 @@ const mainNavItems = [
   {
     title: "ICP Builder",
     url: "/icp",
-    icon: Target,
+    icon: Crosshair,
   },
   {
     title: "Analytics",
@@ -70,15 +70,13 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer hover-elevate active-elevate-2 rounded-md p-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary">
-              <Target className="w-5 h-5 text-primary-foreground" />
-            </div>
+          <div className="flex items-center cursor-pointer hover-elevate active-elevate-2 rounded-md p-2">
             <div className="flex flex-col">
               <span className="font-semibold text-sm" data-testid="text-app-name">
-                GovLeads
+                <span className="text-primary">RLTX</span>
+                <span className="text-muted-foreground font-normal ml-1">Lead Gen</span>
               </span>
-              <span className="text-xs text-muted-foreground">by rltx.ai</span>
+              <span className="text-xs text-muted-foreground">AI-Powered B2B Prospecting</span>
             </div>
           </div>
         </Link>

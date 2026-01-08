@@ -1144,6 +1144,22 @@ Focus on making the content compelling for enterprise and government decision-ma
     }
   });
 
+  // Sync/reseed ICP templates - creates new ones and updates existing ones with latest configs
+  app.post("/api/icp/sync", async (req: Request, res: Response) => {
+    try {
+      const result = await storage.syncIcpProfiles();
+      console.log(`[Routes] ICP sync complete: ${result.created} created, ${result.updated} updated`);
+      res.json({
+        success: true,
+        message: `Synced ICP templates: ${result.created} created, ${result.updated} updated`,
+        ...result
+      });
+    } catch (error) {
+      console.error("Error syncing ICP profiles:", error);
+      res.status(500).json({ error: "Failed to sync ICP profiles" });
+    }
+  });
+
   app.get("/api/icp/:id/matching-leads", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);

@@ -79,7 +79,7 @@ export default function ExportPage() {
         return;
       }
 
-      const filename = `govleads_export_${new Date().toISOString().split("T")[0]}.${format}`;
+      const filename = `rltx_leads_${new Date().toISOString().split("T")[0]}.${format}`;
       const blob = new Blob([data], {
         type: format === "csv" ? "text/csv" : "application/json",
       });

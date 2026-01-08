@@ -149,56 +149,68 @@ Content: ${(r.raw_content || r.content || "").slice(0, 3000)}
 
   const entityType = entity.entityType || playbookConfig.targetEntityTypes?.[0] || "organization";
   const enrichmentHints = playbookConfig.enrichmentPromptHints || "";
+  const valueProposition = playbookConfig.valueProposition || "";
 
-  const prompt = `You are extracting contact information from search results for a lead generation system.
+  const prompt = `You are an elite B2B sales intelligence analyst extracting verified contact information for high-value outreach.
 
-ENTITY: ${entity.name}
+=== TARGET ORGANIZATION ===
+COMPANY: ${entity.name}
 TYPE: ${entityType}
-STATE: ${entity.state || "Unknown"}
-DEPARTMENT/FOCUS: ${entity.department || "General"}
+LOCATION: ${entity.state || "United States"}
+FOCUS AREA: ${entity.department || "General Technology"}
 
-${enrichmentHints ? `SPECIFIC GUIDANCE: ${enrichmentHints}` : ""}
+=== EXTRACTION PRIORITIES ===
+${enrichmentHints}
 
-SEARCH RESULTS:
+=== SEARCH RESULTS ===
 ${combinedContent}
 
-Extract ONLY information that is explicitly stated in the search results. Do NOT make up or guess any information.
+=== YOUR MISSION ===
+Extract VERIFIED contact information for decision makers who would be interested in: ${valueProposition || "enterprise technology solutions"}
 
-Find:
-1. The official website URL
-2. A phone number for the organization or department
-3. An email address (look for contact emails)
-4. Decision maker name and title (key leadership)
-5. Any additional staff contacts found
+EXTRACTION RULES:
+1. ONLY include information EXPLICITLY stated in the search results
+2. PRIORITIZE direct phone lines over main office numbers
+3. PRIORITIZE personal/work emails over generic department emails
+4. For decision makers, find the MOST SENIOR technology/business leader mentioned
+5. Mark confidence as HIGH (explicit text), MEDIUM (inferred from context), or LOW (uncertain)
 
-IMPORTANT: Only include information you can verify from the search results. If you cannot find a piece of information, set it to null.
+QUALITY STANDARDS:
+- Direct extensions and mobile numbers > main office numbers
+- firstname.lastname@company.com > info@company.com
+- Specific titles (CTO, VP Engineering) > generic (Manager, Director)
+- If uncertain about data accuracy, mark as null rather than guess
 
-Respond ONLY with valid JSON in this exact format:
+Respond ONLY with valid JSON:
 {
-  "phoneNumber": "extracted phone number or null",
+  "phoneNumber": "extracted phone or null",
   "email": "extracted email or null",
   "website": "official website URL or null",
-  "decisionMakerName": "name of key official or null",
-  "decisionMakerTitle": "their title or null",
+  "decisionMakerName": "full name of most senior relevant leader or null",
+  "decisionMakerTitle": "exact title as stated or null",
+  "decisionMakerPhone": "their direct line if found or null",
+  "decisionMakerEmail": "their personal email if found or null",
   "additionalContacts": [
     {
       "name": "Staff name",
-      "title": "Their title",
-      "phone": "their direct phone or null",
-      "email": "their email or null"
+      "title": "Exact title",
+      "phone": "direct phone or null",
+      "email": "personal email or null",
+      "confidence": "HIGH|MEDIUM|LOW"
     }
   ],
+  "buyingSignals": ["any technology initiatives, RFPs, or pain points mentioned"],
   "confidenceScore": 75
 }
 
-The confidenceScore should be 0-100 based on how reliable the extracted data appears.`;
+confidenceScore: 90+ = multiple verified data points, 70-89 = good data with some gaps, 50-69 = partial data, <50 = limited information found`;
 
   try {
     const message = await pRetry(
       async () => {
         return await getAnthropicClient().messages.create({
           model: "claude-sonnet-4-5",
-          max_tokens: 1000,
+          max_tokens: 2000,
           messages: [{ role: "user", content: prompt }],
         });
       },

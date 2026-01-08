@@ -231,6 +231,10 @@ router.get("/over-time", async (req: Request, res: Response) => {
         const dateKey = new Date(lead.lastContactedAt).toISOString().split('T')[0];
         if (dateMap.has(dateKey)) {
           dateMap.get(dateKey)!.leadsContacted++;
+          // Count meetings booked on this date
+          if (lead.lastCallOutcome === "meeting_scheduled") {
+            dateMap.get(dateKey)!.meetingsBooked++;
+          }
         }
       }
     }

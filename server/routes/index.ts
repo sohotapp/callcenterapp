@@ -17,6 +17,7 @@ import deduplicationRoutes from "./deduplication";
 import predictiveRoutes from "./predictive";
 import intelligenceRoutes from "./intelligence";
 import briefingRoutes from "./briefing";
+import messagesRoutes from "./messages";
 import { getAvailableTemplateVariables } from "./utils";
 
 export async function registerRoutes(
@@ -143,6 +144,11 @@ export async function registerRoutes(
   // CALL BRIEFING ROUTES (The Product)
   // ============================================
   app.use("/api/briefing", briefingRoutes);
+
+  // ============================================
+  // MESSAGE GENERATION ROUTES (Anti-Slop Engine)
+  // ============================================
+  app.use("/api/messages", messagesRoutes);
 
   return httpServer;
 }

@@ -1,0 +1,36 @@
+[2026-01-08 14:39:53] [ERROR] tmux is not installed. Please install tmux or run without --monitor flag.
+[2026-01-08 14:41:21] [SUCCESS] 🚀 Ralph loop starting with Claude Code
+[2026-01-08 14:41:21] [INFO] Max calls per hour: 100
+[2026-01-08 14:41:21] [INFO] Logs: logs/ | Docs: docs/generated/ | Status: status.json
+[2026-01-08 14:41:21] [INFO] Starting main loop...
+[2026-01-08 14:41:21] [INFO] DEBUG: About to enter while loop, loop_count=0
+[2026-01-08 14:41:21] [INFO] DEBUG: Successfully incremented loop_count to 1
+[2026-01-08 14:41:21] [INFO] Loop #1 - calling init_call_tracking...
+[2026-01-08 14:41:21] [INFO] DEBUG: Entered init_call_tracking...
+[2026-01-08 14:41:21] [INFO] Call counter reset for new hour: 2026010814
+[2026-01-08 14:41:21] [INFO] DEBUG: Completed init_call_tracking successfully
+[2026-01-08 14:41:21] [LOOP] === Starting Loop #1 ===
+[2026-01-08 14:41:21] [INFO] DEBUG: Checking exit conditions...
+[2026-01-08 14:41:21] [INFO] DEBUG: Exit signals content: {"test_only_loops": [], "done_signals": [], "completion_indicators": []}
+[2026-01-08 14:41:21] [INFO] DEBUG: Exit counts - test_loops:0, done_signals:0, completion:0
+[2026-01-08 14:41:21] [INFO] DEBUG: @fix_plan.md check - total_items:306, completed_items:57
+[2026-01-08 14:41:21] [INFO] DEBUG: No exit conditions met, continuing loop
+[2026-01-08 14:41:21] [LOOP] Executing Claude Code (Call 1/100)
+[2026-01-08 14:41:21] [INFO] ⏳ Starting Claude Code execution... (timeout: 15m)
+[2026-01-08 14:44:00] [SUCCESS] 🚀 Ralph loop starting with Claude Code
+[2026-01-08 14:44:00] [INFO] Max calls per hour: 100
+[2026-01-08 14:44:00] [INFO] Logs: logs/ | Docs: docs/generated/ | Status: status.json
+[2026-01-08 14:44:00] [INFO] Starting main loop...
+[2026-01-08 14:44:00] [INFO] DEBUG: About to enter while loop, loop_count=0
+[2026-01-08 14:44:00] [INFO] DEBUG: Successfully incremented loop_count to 1
+[2026-01-08 14:44:00] [INFO] Loop #1 - calling init_call_tracking...
+[2026-01-08 14:44:00] [INFO] DEBUG: Entered init_call_tracking...
+[2026-01-08 14:44:01] [INFO] DEBUG: Completed init_call_tracking successfully
+[2026-01-08 14:44:01] [LOOP] === Starting Loop #1 ===
+[2026-01-08 14:44:01] [INFO] DEBUG: Checking exit conditions...
+[2026-01-08 14:44:01] [INFO] DEBUG: Exit signals content: {"test_only_loops": [], "done_signals": [], "completion_indicators": []}
+[2026-01-08 14:44:01] [INFO] DEBUG: Exit counts - test_loops:0, done_signals:0, completion:0
+[2026-01-08 14:44:01] [INFO] DEBUG: @fix_plan.md check - total_items:306, completed_items:57
+[2026-01-08 14:44:01] [INFO] DEBUG: No exit conditions met, continuing loop
+[2026-01-08 14:44:01] [LOOP] Executing Claude Code (Call 1/100)
+[2026-01-08 14:44:01] [INFO] ⏳ Starting Claude Code execution... (timeout: 15m)

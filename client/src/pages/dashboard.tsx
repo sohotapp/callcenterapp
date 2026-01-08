@@ -37,6 +37,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GovernmentLead } from "@shared/schema";
 import { useState } from "react";
+import { PredictiveInsightsCard } from "@/components/predictive-insights";
 
 interface DashboardStats {
   totalLeads: number;
@@ -212,6 +213,9 @@ export default function Dashboard() {
           loading={statsLoading}
         />
       </div>
+
+      {/* AI Predictive Insights */}
+      <PredictiveInsightsCard />
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">

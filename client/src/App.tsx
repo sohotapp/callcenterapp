@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AICommandPalette } from "@/components/ai-command-palette";
 import Dashboard from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import LeadDetail from "@/pages/lead-detail";
@@ -58,6 +59,7 @@ function App() {
           </div>
         </SidebarProvider>
         <Toaster />
+        <AICommandPalette />
       </TooltipProvider>
     </QueryClientProvider>
   );

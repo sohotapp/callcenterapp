@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SmartLeadCard } from "@/components/smart-lead-card";
 import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -798,6 +799,9 @@ export default function LeadDetail() {
         </div>
 
         <div className="space-y-6">
+          {/* AI-Powered Lead Summary */}
+          <SmartLeadCard lead={lead} variant="compact" />
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

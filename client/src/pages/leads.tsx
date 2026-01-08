@@ -98,21 +98,32 @@ export default function LeadsPage() {
       return matchesSearch && matchesStatus && matchesState && matchesType;
     })
     .sort((a, b) => {
-      let aVal = a[sortBy as keyof GovernmentLead];
-      let bVal = b[sortBy as keyof GovernmentLead];
+      const aVal = a[sortBy as keyof GovernmentLead];
+      const bVal = b[sortBy as keyof GovernmentLead];
 
-      if (aVal === null || aVal === undefined) aVal = 0;
-      if (bVal === null || bVal === undefined) bVal = 0;
+      // Handle null/undefined - push to end
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return sortOrder === "asc" ? 1 : -1;
+      if (bVal == null) return sortOrder === "asc" ? -1 : 1;
 
+      // String comparison
       if (typeof aVal === "string" && typeof bVal === "string") {
         return sortOrder === "asc"
           ? aVal.localeCompare(bVal)
           : bVal.localeCompare(aVal);
       }
 
+      // Numeric comparison (only for actual numbers)
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+      }
+
+      // Fallback: convert to string for other types
+      const aStr = String(aVal);
+      const bStr = String(bVal);
       return sortOrder === "asc"
-        ? (aVal as number) - (bVal as number)
-        : (bVal as number) - (aVal as number);
+        ? aStr.localeCompare(bStr)
+        : bStr.localeCompare(aStr);
     });
 
   const totalPages = Math.ceil((filteredLeads?.length ?? 0) / ITEMS_PER_PAGE);

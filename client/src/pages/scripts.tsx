@@ -285,7 +285,7 @@ export default function ScriptsPage() {
                   </div>
                 </div>
 
-                {selectedScript.talkingPoints && selectedScript.talkingPoints.length > 0 && (
+                {Array.isArray(selectedScript.talkingPoints) && selectedScript.talkingPoints.length > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-2">
@@ -320,7 +320,7 @@ export default function ScriptsPage() {
                   </div>
                 </div>
 
-                {selectedScript.objectionHandlers && (selectedScript.objectionHandlers as ObjectionHandler[]).length > 0 && (
+                {Array.isArray(selectedScript.objectionHandlers) && selectedScript.objectionHandlers.length > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-2">

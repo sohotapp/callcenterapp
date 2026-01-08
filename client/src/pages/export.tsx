@@ -62,8 +62,20 @@ export default function ExportPage() {
       });
       return response;
     },
-    onSuccess: async (response: any) => {
-      const data = response.data;
+    onSuccess: async (response: unknown) => {
+      const typedResponse = response as { data?: string; count?: number } | null;
+      const data = typedResponse?.data ?? "";
+      const count = typedResponse?.count ?? 0;
+
+      if (!data) {
+        toast({
+          title: "Export Warning",
+          description: "Export completed but no data was returned.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const filename = `govleads_export_${new Date().toISOString().split("T")[0]}.${format}`;
       const blob = new Blob([data], {
         type: format === "csv" ? "text/csv" : "application/json",
@@ -79,7 +91,7 @@ export default function ExportPage() {
 
       toast({
         title: "Export Complete",
-        description: `Successfully exported ${response.count} leads.`,
+        description: `Successfully exported ${count} leads.`,
       });
     },
     onError: () => {

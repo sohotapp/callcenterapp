@@ -419,7 +419,7 @@ export default function LeadDetail() {
 
                       <Separator />
 
-                      {currentScript.talkingPoints && currentScript.talkingPoints.length > 0 && (
+                      {Array.isArray(currentScript.talkingPoints) && currentScript.talkingPoints.length > 0 && (
                         <>
                           <div className="space-y-2">
                             <h4 className="text-sm font-medium">Talking Points</h4>
@@ -485,7 +485,7 @@ export default function LeadDetail() {
 
                       <Separator />
 
-                      {currentScript.objectionHandlers && (currentScript.objectionHandlers as ObjectionHandler[]).length > 0 && (
+                      {Array.isArray(currentScript.objectionHandlers) && currentScript.objectionHandlers.length > 0 && (
                         <>
                           <div className="space-y-2">
                             <h4 className="text-sm font-medium">Objection Handlers</h4>
@@ -624,7 +624,7 @@ export default function LeadDetail() {
                         </div>
                       )}
                       
-                      {lead.decisionMakers && lead.decisionMakers.length > 0 && (
+                      {Array.isArray(lead.decisionMakers) && lead.decisionMakers.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <User className="h-4 w-4" />
@@ -661,7 +661,7 @@ export default function LeadDetail() {
                         </div>
                       )}
                       
-                      {lead.techStack && lead.techStack.length > 0 && (
+                      {Array.isArray(lead.techStack) && lead.techStack.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <Cpu className="h-4 w-4" />
@@ -675,7 +675,7 @@ export default function LeadDetail() {
                         </div>
                       )}
                       
-                      {lead.buyingSignals && lead.buyingSignals.length > 0 && (
+                      {Array.isArray(lead.buyingSignals) && lead.buyingSignals.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <TrendingUp className="h-4 w-4" />
@@ -692,7 +692,7 @@ export default function LeadDetail() {
                         </div>
                       )}
                       
-                      {lead.recentNews && lead.recentNews.length > 0 && (
+                      {Array.isArray(lead.recentNews) && lead.recentNews.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <Newspaper className="h-4 w-4" />
@@ -720,7 +720,7 @@ export default function LeadDetail() {
                         </div>
                       )}
                       
-                      {lead.competitorAnalysis && lead.competitorAnalysis.length > 0 && (
+                      {Array.isArray(lead.competitorAnalysis) && lead.competitorAnalysis.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
                             <Target className="h-4 w-4" />
@@ -771,7 +771,7 @@ export default function LeadDetail() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {lead.painPoints && lead.painPoints.length > 0 ? (
+                  {Array.isArray(lead.painPoints) && lead.painPoints.length > 0 ? (
                     <ul className="space-y-3">
                       {lead.painPoints.map((point, idx) => (
                         <li

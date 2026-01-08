@@ -129,24 +129,24 @@
 ## Phase 5: Anti-Slop Message Generation
 
 ### 5.1 Constraint System
-- [ ] Create `server/intelligence/message-generator.ts`
-- [ ] Implement banned phrase detection and rejection
-- [ ] Implement max sentence limit (4 for email)
-- [ ] Implement first-line specificity check
-- [ ] Implement "say it out loud" heuristic scoring
+- [x] Create `server/intelligence/message-generator.ts`
+- [x] Implement banned phrase detection and rejection
+- [x] Implement max sentence limit (4 for email)
+- [x] Implement first-line specificity check
+- [x] Implement "say it out loud" heuristic scoring
 
 ### 5.2 Message Templates
-- [ ] Create cold email template with synthesis placeholders
-- [ ] Create LinkedIn message template with synthesis placeholders
-- [ ] Create call script template with briefing integration
-- [ ] Add message preview with slop score indicator
+- [x] Create cold email template with synthesis placeholders
+- [x] Create LinkedIn message template with synthesis placeholders
+- [x] Create call script template with briefing integration
+- [x] Add message preview with slop score indicator
 
 ### 5.3 Human Review Queue
-- [ ] Create `client/src/pages/review-queue.tsx`
-- [ ] Show high-value leads (score 8+) for review
-- [ ] Display proposed message with edit capability
-- [ ] Add approve/reject/edit workflow
-- [ ] Track review metrics
+- [x] Create `client/src/pages/review-queue.tsx`
+- [x] Show high-value leads (score 8+) for review
+- [x] Display proposed message with edit capability
+- [x] Add approve/reject/edit workflow
+- [x] Track review metrics
 
 ---
 
@@ -440,13 +440,13 @@
 - [ ] Track call duration in outreach_history
 
 ### 12.2 Email Compose
-- [ ] Create `client/src/components/email-composer.tsx`
-- [ ] Pre-populate email with generated message from synthesis
-- [ ] Add "Copy to Clipboard" for use in external email client
-- [ ] Add `mailto:` link option for native email app
-- [ ] Add slop-score indicator showing message quality
-- [ ] Add "Regenerate" button to get new AI message
-- [ ] Track email sent in outreach_history
+- [x] Create `client/src/components/email-composer.tsx`
+- [x] Pre-populate email with generated message from synthesis
+- [x] Add "Copy to Clipboard" for use in external email client
+- [x] Add `mailto:` link option for native email app
+- [x] Add slop-score indicator showing message quality
+- [x] Add "Regenerate" button to get new AI message
+- [x] Track email sent in outreach_history
 
 ### 12.3 LinkedIn Message Prep
 - [ ] Add "Open LinkedIn" button linking to prospect's profile
@@ -466,7 +466,7 @@
 
 **Started:** 2026-01-08
 **Last Updated:** 2026-01-08
-**Tasks Completed:** 73 / 207
+**Tasks Completed:** 95 / 207
 **Current Phase:** Phase 11 Lead Entry & Import (NEXT CRITICAL)
 
 ---

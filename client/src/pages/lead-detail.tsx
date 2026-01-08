@@ -45,6 +45,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { extractArray } from "@/lib/utils";
 import { SmartLeadCard } from "@/components/smart-lead-card";
+import { EmailComposer } from "@/components/email-composer";
 import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -328,6 +329,10 @@ export default function LeadDetail() {
                 <FileText className="h-4 w-4 mr-2" />
                 Call Scripts
               </TabsTrigger>
+              <TabsTrigger value="email" data-testid="tab-email">
+                <Mail className="h-4 w-4 mr-2" />
+                Email
+              </TabsTrigger>
               <TabsTrigger value="intelligence" data-testid="tab-intelligence">
                 <Brain className="h-4 w-4 mr-2" />
                 Intelligence
@@ -591,6 +596,31 @@ export default function LeadDetail() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="email" className="mt-4">
+              <EmailComposer
+                leadId={lead.id}
+                leadName={lead.institutionName}
+                email={lead.email}
+                whyNow={lead.synthesizedContext?.whyReachOutNow}
+                onSend={async (subject, body) => {
+                  // Log the email activity
+                  try {
+                    await apiRequest("POST", "/api/activities", {
+                      leadId: lead.id,
+                      activityType: "email",
+                      subject,
+                      content: body,
+                      status: "sent",
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/activities/lead", leadId] });
+                  } catch (error) {
+                    console.error("Failed to log email activity:", error);
+                  }
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="intelligence" className="mt-4">

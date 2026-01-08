@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Plus,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,9 +32,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { extractArray } from "@/lib/utils";
+import { CSVImportWizard } from "@/components/csv-import-wizard";
 import type { GovernmentLead } from "@shared/schema";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const statusColors: Record<string, string> = {
   not_contacted: "bg-muted text-muted-foreground",
@@ -79,6 +87,8 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<string>("priorityScore");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: leadsData, isLoading } = useQuery<unknown>({
     queryKey: ["/api/leads"],
@@ -159,12 +169,18 @@ export default function LeadsPage() {
             {filteredLeads.length} government leads
           </p>
         </div>
-        <Link href="/leads/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Lead
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportModalOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
           </Button>
-        </Link>
+          <Link href="/leads/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Lead
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card>
@@ -482,6 +498,20 @@ export default function LeadsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* CSV Import Modal */}
+      <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogTitle className="sr-only">Import Leads from CSV</DialogTitle>
+          <CSVImportWizard
+            onComplete={() => {
+              setImportModalOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+            }}
+            onCancel={() => setImportModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

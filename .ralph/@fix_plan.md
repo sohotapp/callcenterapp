@@ -413,13 +413,13 @@
 - [x] Add validation for required fields and email format
 
 ### 11.2 CSV Import
-- [ ] Create `client/src/components/csv-import-wizard.tsx`
-- [ ] Add drag-and-drop CSV upload zone
-- [ ] Add column mapping UI (map CSV columns to lead fields)
-- [ ] Add preview of first 5 rows before import
-- [ ] Add duplicate detection (by email) with options (skip, merge, replace)
-- [ ] Create `POST /api/leads/import-csv` endpoint
-- [ ] Add import progress indicator with success/error counts
+- [x] Create `client/src/components/csv-import-wizard.tsx`
+- [x] Add drag-and-drop CSV upload zone
+- [x] Add column mapping UI (map CSV columns to lead fields)
+- [x] Add preview of first 5 rows before import
+- [x] Add duplicate detection (by email) with options (skip, merge, replace)
+- [x] Create `POST /api/leads/import-csv` endpoint (uses POST /api/leads with batch)
+- [x] Add import progress indicator with success/error counts
 - [ ] Add import history log
 
 ### 11.3 Quick Add from Anywhere
@@ -466,7 +466,7 @@
 
 **Started:** 2026-01-08
 **Last Updated:** 2026-01-08
-**Tasks Completed:** 66 / 207
+**Tasks Completed:** 73 / 207
 **Current Phase:** Phase 11 Lead Entry & Import (NEXT CRITICAL)
 
 ---

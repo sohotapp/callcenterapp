@@ -1,13 +1,12 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { AICommandPalette } from "@/components/ai-command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { LinearSidebar } from "@/components/linear-sidebar";
+import { AICommandPalette } from "@/components/ai-command-palette";
+import { useEffect } from "react";
 import Dashboard from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import LeadDetail from "@/pages/lead-detail";
@@ -36,34 +35,84 @@ function Router() {
   );
 }
 
-function App() {
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
+// Keyboard shortcuts handler
+function KeyboardShortcuts() {
+  const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+
+      // G + key for navigation (Linear style)
+      if (e.key === "g") {
+        const handleNavKey = (navE: KeyboardEvent) => {
+          switch (navE.key) {
+            case "h":
+              setLocation("/");
+              break;
+            case "l":
+              setLocation("/leads");
+              break;
+            case "s":
+              setLocation("/scrape");
+              break;
+            case "a":
+              setLocation("/analytics");
+              break;
+            case "e":
+              setLocation("/settings");
+              break;
+          }
+          window.removeEventListener("keydown", handleNavKey);
+        };
+        window.addEventListener("keydown", handleNavKey, { once: true });
+        setTimeout(() => window.removeEventListener("keydown", handleNavKey), 500);
+      }
+
+      // ? to show shortcuts (could trigger a modal)
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        // Could show shortcuts modal
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setLocation]);
+
+  return null;
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <SidebarProvider style={style as React.CSSProperties}>
-            <div className="flex h-screen w-full">
-              <AppSidebar />
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <header className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
-                </header>
-                <main className="flex-1 overflow-auto">
-                  <ErrorBoundary>
-                    <Router />
-                  </ErrorBoundary>
-                </main>
-              </div>
-            </div>
-          </SidebarProvider>
+        <TooltipProvider delayDuration={200}>
+          {/* Linear-style layout: sidebar + main content */}
+          <div className="flex h-screen w-full bg-background">
+            {/* Sidebar */}
+            <LinearSidebar />
+
+            {/* Main content area */}
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              <ErrorBoundary>
+                <div className="flex-1 overflow-auto">
+                  <Router />
+                </div>
+              </ErrorBoundary>
+            </main>
+          </div>
+
+          {/* Global components */}
           <Toaster />
           <AICommandPalette />
+          <KeyboardShortcuts />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

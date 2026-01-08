@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Building2,
@@ -16,6 +17,8 @@ import {
   Moon,
   Sun,
   Phone,
+  ClipboardList,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -29,12 +32,14 @@ interface NavItem {
   href: string;
   icon: typeof LayoutDashboard;
   shortcut?: string;
+  badgeKey?: "hotLeads" | "reviewQueue";
 }
 
 const mainNavItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, shortcut: "G H" },
   { label: "Leads", href: "/leads", icon: Building2, shortcut: "G L" },
-  { label: "Call Queue", href: "/call-queue", icon: Phone, shortcut: "G Q" },
+  { label: "Call Queue", href: "/call-queue", icon: Phone, shortcut: "G Q", badgeKey: "hotLeads" },
+  { label: "Review Queue", href: "/review-queue", icon: ClipboardList, shortcut: "G R", badgeKey: "reviewQueue" },
   { label: "Scripts", href: "/scripts", icon: MessageSquareText },
   { label: "Scrape", href: "/scrape", icon: Database, shortcut: "G S" },
   { label: "ICP", href: "/icp", icon: Crosshair },
@@ -50,26 +55,38 @@ function NavLink({
   item,
   isCollapsed,
   isActive,
+  badgeCount,
 }: {
   item: NavItem;
   isCollapsed: boolean;
   isActive: boolean;
+  badgeCount?: number;
 }) {
   const content = (
     <Link href={item.href}>
       <div
         className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 cursor-pointer",
+          "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 cursor-pointer relative",
           isActive
             ? "bg-primary/10 text-primary"
             : "text-muted-foreground hover:bg-accent hover:text-foreground"
         )}
       >
-        <item.icon className={cn("h-4 w-4 flex-shrink-0", isActive && "text-primary")} />
+        <div className="relative">
+          <item.icon className={cn("h-4 w-4 flex-shrink-0", isActive && "text-primary")} />
+          {isCollapsed && badgeCount && badgeCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
+          )}
+        </div>
         {!isCollapsed && (
           <>
             <span className="flex-1 truncate">{item.label}</span>
-            {item.shortcut && (
+            {badgeCount && badgeCount > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white px-1.5">
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </span>
+            )}
+            {item.shortcut && !badgeCount && (
               <span className="text-xs text-muted-foreground/60 font-mono">
                 {item.shortcut}
               </span>
@@ -86,6 +103,11 @@ function NavLink({
         <TooltipTrigger asChild>{content}</TooltipTrigger>
         <TooltipContent side="right" className="flex items-center gap-2">
           {item.label}
+          {badgeCount && badgeCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white px-1">
+              {badgeCount}
+            </span>
+          )}
           {item.shortcut && (
             <span className="text-xs text-muted-foreground font-mono">
               {item.shortcut}
@@ -152,6 +174,24 @@ function ThemeToggle({ isCollapsed }: { isCollapsed: boolean }) {
 export function LinearSidebar() {
   const [location] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Fetch hot leads count for badge (score >= 8)
+  const { data: callQueueData } = useQuery({
+    queryKey: ["/api/briefing", { minScore: 8, limit: 1 }],
+    queryFn: async () => {
+      const res = await fetch("/api/briefing?minScore=8&limit=1");
+      if (!res.ok) return { total: 0 };
+      return res.json();
+    },
+    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000,
+  });
+
+  // Badge counts for navigation items
+  const badgeCounts: Record<string, number> = {
+    hotLeads: callQueueData?.total ?? 0,
+    reviewQueue: 0, // TODO: implement review queue count
+  };
 
   // Handle keyboard shortcut to toggle sidebar
   useEffect(() => {
@@ -231,6 +271,38 @@ export function LinearSidebar() {
             </TooltipContent>
           )}
         </Tooltip>
+
+        {/* Quick Add Lead Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link href="/leads/new">
+              <button
+                className={cn(
+                  "flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm transition-colors duration-150 mt-2",
+                  "bg-primary/10 text-primary hover:bg-primary/20"
+                )}
+              >
+                <Plus className="h-4 w-4 flex-shrink-0" />
+                {!isCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">Add Lead</span>
+                    <span className="flex items-center gap-0.5 text-xs font-mono">
+                      <Command className="h-3 w-3" />N
+                    </span>
+                  </>
+                )}
+              </button>
+            </Link>
+          </TooltipTrigger>
+          {isCollapsed && (
+            <TooltipContent side="right" className="flex items-center gap-2">
+              Add Lead
+              <span className="flex items-center gap-0.5 text-xs">
+                <Command className="h-3 w-3" />N
+              </span>
+            </TooltipContent>
+          )}
+        </Tooltip>
       </div>
 
       {/* Main Navigation */}
@@ -245,6 +317,7 @@ export function LinearSidebar() {
                 ? location === "/"
                 : location.startsWith(item.href)
             }
+            badgeCount={item.badgeKey ? badgeCounts[item.badgeKey] : undefined}
           />
         ))}
       </nav>

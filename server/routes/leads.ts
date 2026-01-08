@@ -19,6 +19,40 @@ const batchEnrichSchema = z.object({
   leadIds: z.array(z.number()).min(1).max(10),
 });
 
+// Schema for creating a new lead manually
+const createLeadSchema = z.object({
+  // Required fields
+  institutionName: z.string().min(1, "Institution name is required"),
+  institutionType: z.string().min(1, "Institution type is required"),
+  state: z.string().min(1, "State is required"),
+
+  // Optional contact info
+  email: z.string().email("Invalid email format").optional().nullable().or(z.literal("")),
+  phoneNumber: z.string().optional().nullable(),
+  website: z.string().url("Invalid URL format").optional().nullable().or(z.literal("")),
+  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().nullable().or(z.literal("")),
+  twitterHandle: z.string().optional().nullable(),
+
+  // Optional location
+  county: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+
+  // Optional organization details
+  department: z.string().optional().nullable(),
+  population: z.number().int().positive().optional().nullable(),
+  annualBudget: z.string().optional().nullable(),
+
+  // Optional notes
+  notes: z.string().optional().nullable(),
+  painPoints: z.array(z.string()).optional(),
+
+  // Optional ICP assignment
+  icpId: z.number().int().positive().optional().nullable(),
+
+  // Optional: enrich after creation
+  enrichOnSave: z.boolean().optional().default(false),
+});
+
 // GET /api/leads - All leads with pagination (SQL-level LIMIT/OFFSET)
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -55,6 +89,41 @@ router.get("/top-scored", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/leads/institutions - Get unique institution names for autocomplete
+router.get("/institutions", async (req: Request, res: Response) => {
+  try {
+    const query = (req.query.q as string || "").toLowerCase();
+    const leads = await storage.getAllLeads();
+
+    // Get unique institution names
+    const institutionMap = new Map<string, { name: string; type: string; state: string }>();
+    for (const lead of leads) {
+      if (!institutionMap.has(lead.institutionName)) {
+        institutionMap.set(lead.institutionName, {
+          name: lead.institutionName,
+          type: lead.institutionType,
+          state: lead.state,
+        });
+      }
+    }
+
+    let institutions = Array.from(institutionMap.values());
+
+    // Filter by query if provided
+    if (query) {
+      institutions = institutions.filter(inst =>
+        inst.name.toLowerCase().includes(query)
+      );
+    }
+
+    // Limit results
+    res.json(institutions.slice(0, 20));
+  } catch (error) {
+    console.error("Error fetching institutions:", error);
+    res.status(500).json({ error: "Failed to fetch institutions" });
+  }
+});
+
 // GET /api/leads/:id - Single lead
 router.get("/:id", async (req: Request, res: Response) => {
   try {
@@ -70,6 +139,97 @@ router.get("/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching lead:", error);
     res.status(500).json({ error: "Failed to fetch lead" });
+  }
+});
+
+// POST /api/leads - Create new lead manually
+router.post("/", async (req: Request, res: Response) => {
+  try {
+    const parseResult = createLeadSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: "Invalid request body",
+        details: parseResult.error.flatten()
+      });
+    }
+
+    const { enrichOnSave, ...leadData } = parseResult.data;
+
+    // Clean empty strings to null for optional URL fields
+    const cleanedData = {
+      ...leadData,
+      email: leadData.email === "" ? null : leadData.email,
+      website: leadData.website === "" ? null : leadData.website,
+      linkedinUrl: leadData.linkedinUrl === "" ? null : leadData.linkedinUrl,
+      sourceData: {
+        sourceType: "manual",
+        extractionMethod: "manual_entry",
+        verifiedAt: new Date().toISOString(),
+        confidenceScore: 100,
+      },
+    };
+
+    const lead = await storage.createLead(cleanedData);
+
+    // Auto-assign ICP if not specified
+    if (!lead.icpId) {
+      try {
+        const icpProfiles = await storage.getIcpProfiles();
+        const activeProfiles = icpProfiles.filter((p: any) => p.isActive);
+        if (activeProfiles.length > 0) {
+          const bestMatch = findBestIcpForLead(lead, activeProfiles);
+          if (bestMatch && bestMatch.matchScore > 50) {
+            await storage.updateLead(lead.id, { icpId: bestMatch.icpId });
+            lead.icpId = bestMatch.icpId;
+          }
+        }
+      } catch (icpError) {
+        console.warn("Failed to auto-assign ICP:", icpError);
+      }
+    }
+
+    // Optional: trigger enrichment after creation
+    if (enrichOnSave) {
+      try {
+        const enrichmentResult = await enrichLeadWithRealData(lead);
+        await storage.updateLeadEnrichment(lead.id, {
+          decisionMakers: enrichmentResult.decisionMakers,
+          techStack: enrichmentResult.techStack,
+          buyingSignals: enrichmentResult.buyingSignals,
+          enrichmentScore: enrichmentResult.enrichmentScore,
+        });
+        const enrichedLead = await storage.getLead(lead.id);
+        return res.status(201).json(enrichedLead);
+      } catch (enrichError) {
+        console.warn("Enrichment failed but lead was created:", enrichError);
+      }
+    }
+
+    res.status(201).json(lead);
+  } catch (error) {
+    console.error("Error creating lead:", error);
+    res.status(500).json({ error: "Failed to create lead" });
+  }
+});
+
+// DELETE /api/leads/:id - Delete lead
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid lead ID" });
+    }
+
+    const lead = await storage.getLead(id);
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    await storage.deleteLead(id);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting lead:", error);
+    res.status(500).json({ error: "Failed to delete lead" });
   }
 });
 

@@ -17,6 +17,8 @@ import SettingsPage from "@/pages/settings";
 import IcpPage from "@/pages/icp";
 import AnalyticsPage from "@/pages/analytics";
 import CallQueuePage from "@/pages/call-queue";
+import ReviewQueuePage from "@/pages/review-queue";
+import AddLeadPage from "@/pages/add-lead";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +26,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/leads" component={LeadsPage} />
+      <Route path="/leads/new" component={AddLeadPage} />
       <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/scripts" component={ScriptsPage} />
       <Route path="/scrape" component={ScrapePage} />
@@ -31,6 +34,7 @@ function Router() {
       <Route path="/icp" component={IcpPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/call-queue" component={CallQueuePage} />
+      <Route path="/review-queue" component={ReviewQueuePage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
@@ -62,6 +66,12 @@ function KeyboardShortcuts() {
             case "l":
               setLocation("/leads");
               break;
+            case "q":
+              setLocation("/call-queue");
+              break;
+            case "r":
+              setLocation("/review-queue");
+              break;
             case "s":
               setLocation("/scrape");
               break;
@@ -81,6 +91,12 @@ function KeyboardShortcuts() {
       // ? to show shortcuts (could trigger a modal)
       if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
         // Could show shortcuts modal
+      }
+
+      // Cmd+N to add new lead
+      if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setLocation("/leads/new");
       }
     };
 

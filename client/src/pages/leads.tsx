@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronsLeft,
   ChevronsRight,
+  Plus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,13 +150,21 @@ export default function LeadsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold" data-testid="text-page-title">
-          All Leads
-        </h1>
-        <p className="text-muted-foreground">
-          {filteredLeads.length} government leads
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-semibold" data-testid="text-page-title">
+            All Leads
+          </h1>
+          <p className="text-muted-foreground">
+            {filteredLeads.length} government leads
+          </p>
+        </div>
+        <Link href="/leads/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Lead
+          </Button>
+        </Link>
       </div>
 
       <Card>
@@ -452,14 +461,22 @@ export default function LeadsPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 {searchQuery || statusFilter !== "all" || stateFilter !== "all" || typeFilter !== "all"
                   ? "Try adjusting your filters"
-                  : "Start by scraping government data"}
+                  : "Add a lead manually or scrape for data"}
               </p>
               {!searchQuery && statusFilter === "all" && stateFilter === "all" && typeFilter === "all" && (
-                <Link href="/scrape">
-                  <Button className="mt-4" data-testid="button-start-scraping">
-                    Start Scraping
-                  </Button>
-                </Link>
+                <div className="flex gap-3 mt-4">
+                  <Link href="/leads/new">
+                    <Button data-testid="button-add-lead">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Lead
+                    </Button>
+                  </Link>
+                  <Link href="/scrape">
+                    <Button variant="outline" data-testid="button-start-scraping">
+                      Start Scraping
+                    </Button>
+                  </Link>
+                </div>
               )}
             </div>
           )}

@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { extractArray } from "@/lib/utils";
 import type { CallScript, GovernmentLead, ScriptStyle, ObjectionHandler } from "@shared/schema";
 
 interface ScriptWithLead extends CallScript {
@@ -76,11 +77,13 @@ export default function ScriptsPage() {
   const [selectedScript, setSelectedScript] = useState<ScriptWithLead | null>(null);
   const { toast } = useToast();
 
-  const { data: scripts, isLoading } = useQuery<ScriptWithLead[]>({
+  const { data: scriptsData, isLoading } = useQuery<unknown>({
     queryKey: ["/api/scripts"],
   });
 
-  const filteredScripts = scripts?.filter((script) => {
+  const scripts = extractArray<ScriptWithLead>(scriptsData);
+
+  const filteredScripts = scripts.filter((script) => {
     if (styleFilter !== "all" && script.scriptStyle !== styleFilter) return false;
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -92,7 +95,7 @@ export default function ScriptsPage() {
     );
   });
 
-  const groupedByLead = filteredScripts?.reduce((acc, script) => {
+  const groupedByLead = filteredScripts.reduce((acc, script) => {
     const leadId = script.leadId;
     if (!acc[leadId]) {
       acc[leadId] = {
@@ -148,7 +151,7 @@ export default function ScriptsPage() {
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">
-          {filteredScripts?.length ?? 0} scripts
+          {filteredScripts.length} scripts
         </span>
       </div>
 
@@ -158,7 +161,7 @@ export default function ScriptsPage() {
             <ScriptCardSkeleton key={i} />
           ))}
         </div>
-      ) : groupedByLead && Object.keys(groupedByLead).length > 0 ? (
+      ) : Object.keys(groupedByLead).length > 0 ? (
         <div className="space-y-8">
           {Object.entries(groupedByLead).map(([leadId, group]) => (
             <div key={leadId} className="space-y-4">

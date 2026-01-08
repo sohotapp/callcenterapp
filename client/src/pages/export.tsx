@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { extractArray } from "@/lib/utils";
 import type { GovernmentLead } from "@shared/schema";
 
 const EXPORT_FIELDS = [
@@ -49,9 +50,11 @@ export default function ExportPage() {
   );
   const { toast } = useToast();
 
-  const { data: leads } = useQuery<GovernmentLead[]>({
+  const { data: leadsData } = useQuery<unknown>({
     queryKey: ["/api/leads"],
   });
+
+  const leads = extractArray<GovernmentLead>(leadsData);
 
   const exportMutation = useMutation({
     mutationFn: async () => {
@@ -113,9 +116,9 @@ export default function ExportPage() {
   const selectDefaultFields = () =>
     setSelectedFields(EXPORT_FIELDS.filter((f) => f.default).map((f) => f.key));
 
-  const filteredLeadsCount = leads?.filter(
+  const filteredLeadsCount = leads.filter(
     (l) => statusFilter === "all" || l.status === statusFilter
-  ).length ?? 0;
+  ).length;
 
   return (
     <div className="flex flex-col gap-6 p-6">

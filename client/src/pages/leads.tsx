@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { extractArray } from "@/lib/utils";
 import type { GovernmentLead } from "@shared/schema";
 import { useState } from "react";
 
@@ -78,12 +79,14 @@ export default function LeadsPage() {
   const [sortBy, setSortBy] = useState<string>("priorityScore");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  const { data: leads, isLoading } = useQuery<GovernmentLead[]>({
+  const { data: leadsData, isLoading } = useQuery<unknown>({
     queryKey: ["/api/leads"],
   });
 
+  const leads = extractArray<GovernmentLead>(leadsData);
+
   const filteredLeads = leads
-    ?.filter((lead) => {
+    .filter((lead) => {
       const matchesSearch =
         searchQuery === "" ||
         lead.institutionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,14 +129,14 @@ export default function LeadsPage() {
         : bStr.localeCompare(aStr);
     });
 
-  const totalPages = Math.ceil((filteredLeads?.length ?? 0) / ITEMS_PER_PAGE);
-  const paginatedLeads = filteredLeads?.slice(
+  const totalPages = Math.ceil(filteredLeads.length / ITEMS_PER_PAGE);
+  const paginatedLeads = filteredLeads.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  const uniqueStates = Array.from(new Set(leads?.map((l) => l.state) ?? [])).sort();
-  const uniqueTypes = Array.from(new Set(leads?.map((l) => l.institutionType) ?? [])).sort();
+  const uniqueStates = Array.from(new Set(leads.map((l) => l.state))).sort();
+  const uniqueTypes = Array.from(new Set(leads.map((l) => l.institutionType))).sort();
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -151,7 +154,7 @@ export default function LeadsPage() {
           All Leads
         </h1>
         <p className="text-muted-foreground">
-          {filteredLeads?.length ?? 0} government leads
+          {filteredLeads.length} government leads
         </p>
       </div>
 
@@ -235,7 +238,7 @@ export default function LeadsPage() {
         <CardContent>
           {isLoading ? (
             <LeadsTableSkeleton />
-          ) : paginatedLeads && paginatedLeads.length > 0 ? (
+          ) : paginatedLeads.length > 0 ? (
             <>
               <div className="rounded-md border">
                 <Table>
@@ -395,8 +398,8 @@ export default function LeadsPage() {
                 <div className="flex items-center justify-between mt-4">
                   <span className="text-sm text-muted-foreground">
                     Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
-                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredLeads?.length ?? 0)} of{" "}
-                    {filteredLeads?.length ?? 0} leads
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredLeads.length)} of{" "}
+                    {filteredLeads.length} leads
                   </span>
                   <div className="flex items-center gap-1">
                     <Button

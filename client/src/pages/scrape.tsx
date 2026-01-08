@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { extractArray } from "@/lib/utils";
 import type { ScrapeJob, IcpProfile } from "@shared/schema";
 
 const US_STATES = [
@@ -75,29 +76,34 @@ export default function ScrapePage() {
   const [, setLocation] = useLocation();
   const previousJobsRef = useRef<ScrapeJob[]>([]);
 
-  const { data: jobs, isLoading: jobsLoading } = useQuery<ScrapeJob[]>({
+  const { data: jobsData, isLoading: jobsLoading } = useQuery<unknown>({
     queryKey: ["/api/scrape/jobs"],
     refetchInterval: (query) => {
-      const data = query.state.data;
-      const hasActiveJob = data?.some((j) => j.status === "running" || j.status === "pending");
+      const rawData = query.state.data;
+      const jobs = extractArray<ScrapeJob>(rawData);
+      const hasActiveJob = jobs.some((j) => j.status === "running" || j.status === "pending");
       return hasActiveJob ? 2000 : false;
     },
   });
 
-  const { data: icpProfiles, isLoading: icpLoading } = useQuery<IcpProfile[]>({
+  const jobs = extractArray<ScrapeJob>(jobsData);
+
+  const { data: icpProfilesData, isLoading: icpLoading } = useQuery<unknown>({
     queryKey: ["/api/icp"],
   });
+
+  const icpProfiles = extractArray<IcpProfile>(icpProfilesData);
 
   const { data: apiKeyStatus } = useQuery<{ tavily: boolean; anthropic: boolean }>({
     queryKey: ["/api/system/api-keys-status"],
     staleTime: 60000,
   });
 
-  const selectedIcp = icpProfiles?.find((icp) => icp.id.toString() === selectedIcpId);
+  const selectedIcp = icpProfiles.find((icp) => icp.id.toString() === selectedIcpId);
   const missingApiKeys = apiKeyStatus && (!apiKeyStatus.tavily || !apiKeyStatus.anthropic);
 
   useEffect(() => {
-    if (!jobs) return;
+    if (jobs.length === 0) return;
     
     const previousJobs = previousJobsRef.current;
     const wasRunning = previousJobs.some((j) => j.status === "running");
@@ -188,7 +194,7 @@ export default function ScrapePage() {
   const selectAll = () => setSelectedStates(US_STATES);
   const clearAll = () => setSelectedStates([]);
 
-  const activeJob = jobs?.find((j) => j.status === "running");
+  const activeJob = jobs.find((j) => j.status === "running");
   const progress = activeJob
     ? Math.round((activeJob.statesCompleted / activeJob.totalStates) * 100)
     : 0;
@@ -588,7 +594,7 @@ export default function ScrapePage() {
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const playbookJobs = jobs?.filter((j) => j.icpId != null) || [];
+                  const playbookJobs = jobs.filter((j) => j.icpId != null);
                   const activePlaybookJob = playbookJobs.find((j) => j.status === "running");
                   
                   if (playbookScrapeMutation.isPending) {

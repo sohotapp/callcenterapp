@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { extractArray } from "@/lib/utils";
 import type { IcpProfile, TargetCriteria } from "@shared/schema";
 
 const verticalIcons: Record<string, typeof Target> = {
@@ -397,9 +398,11 @@ function IcpCardSkeleton() {
 export default function IcpPage() {
   const { toast } = useToast();
 
-  const { data: profiles, isLoading } = useQuery<IcpProfile[]>({
+  const { data: profilesData, isLoading } = useQuery<unknown>({
     queryKey: ["/api/icp"],
   });
+
+  const profiles = extractArray<IcpProfile>(profilesData);
 
   const { data: matchingCounts } = useQuery<Record<number, number>>({
     queryKey: ["/api/icp/matching-counts"],
@@ -451,7 +454,7 @@ export default function IcpPage() {
     updateMutation.mutate({ id, data });
   };
 
-  const activeCount = profiles?.filter((p) => p.isActive).length ?? 0;
+  const activeCount = profiles.filter((p) => p.isActive).length;
 
   return (
     <div className="p-6 space-y-6">
@@ -466,7 +469,7 @@ export default function IcpPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate">
-            {activeCount} of {profiles?.length ?? 0} active
+            {activeCount} of {profiles.length} active
           </Badge>
         </div>
       </div>
@@ -479,7 +482,7 @@ export default function IcpPage() {
             <IcpCardSkeleton />
           </>
         ) : (
-          profiles?.map((profile) => (
+          profiles.map((profile) => (
             <IcpCard
               key={profile.id}
               profile={profile}

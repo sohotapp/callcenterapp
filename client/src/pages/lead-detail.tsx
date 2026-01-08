@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { extractArray } from "@/lib/utils";
 import { SmartLeadCard } from "@/components/smart-lead-card";
 import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown } from "@shared/schema";
 
@@ -128,10 +129,12 @@ export default function LeadDetail() {
     enabled: leadId > 0,
   });
 
-  const { data: allScripts, isLoading: scriptsLoading } = useQuery<CallScript[]>({
+  const { data: scriptsData, isLoading: scriptsLoading } = useQuery<unknown>({
     queryKey: ["/api/leads", leadId, "scripts"],
     enabled: leadId > 0,
   });
+
+  const allScripts = extractArray<CallScript>(scriptsData);
 
   const { data: icpMatch } = useQuery<{
     leadId: number;
@@ -142,7 +145,7 @@ export default function LeadDetail() {
     enabled: leadId > 0,
   });
 
-  const currentScript = allScripts?.find(s => s.scriptStyle === selectedStyle);
+  const currentScript = allScripts.find(s => s.scriptStyle === selectedStyle);
 
   const generateScriptMutation = useMutation({
     mutationFn: async (style: ScriptStyle) => {
@@ -340,7 +343,7 @@ export default function LeadDetail() {
                     {(Object.keys(scriptStyleConfig) as ScriptStyle[]).map((style) => {
                       const config = scriptStyleConfig[style];
                       const StyleIcon = config.icon;
-                      const hasScript = allScripts?.some(s => s.scriptStyle === style);
+                      const hasScript = allScripts.some(s => s.scriptStyle === style);
                       return (
                         <Button
                           key={style}

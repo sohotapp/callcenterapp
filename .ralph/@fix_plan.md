@@ -106,23 +106,23 @@
 - [x] Implement `POST /api/briefing/:id/log-outcome` - outcome logging
 
 ### 4.2 Frontend - Briefing UI
-- [ ] Create `client/src/pages/call-queue.tsx` - call queue page
-- [ ] Create `client/src/components/call-briefing-card.tsx`
-- [ ] Display WHY NOW section prominently
-- [ ] Display OPENING LINE in quotable format
-- [ ] Display KEY CONTEXT as bullet list
-- [ ] Display LIKELY OBJECTIONS with counters
-- [ ] Display DO NOT MENTION as warning list
-- [ ] Add SOURCE link to original signal
-- [ ] Add call outcome logging UI
+- [x] Create `client/src/pages/call-queue.tsx` - call queue page
+- [x] Create call briefing card component (inline in page)
+- [x] Display WHY NOW section prominently
+- [x] Display OPENING LINE in quotable format
+- [x] Display KEY CONTEXT as bullet list
+- [x] Display LIKELY OBJECTIONS with counters
+- [x] Display DO NOT MENTION as warning list
+- [x] Add SOURCE link to original signal
+- [x] Add call outcome logging UI
 
 ### 4.3 Call Queue Features
-- [ ] Sort leads by outreach_score (highest first)
-- [ ] Filter by score threshold (show only 6+ by default)
+- [x] Sort leads by outreach_score (highest first)
+- [x] Filter by score threshold (show only 6+ by default)
 - [ ] Filter by signal type (Reddit, Jobs, News)
-- [ ] Add "Skip" button to move to next lead
-- [ ] Add "Log Outcome" modal after call
-- [ ] Show next 3 leads in queue sidebar
+- [x] Add "Skip" button to move to next lead
+- [x] Add "Log Outcome" modal after call
+- [x] Show queue sidebar with leads
 
 ---
 
@@ -261,8 +261,8 @@
 
 **Started:** 2026-01-08
 **Last Updated:** 2026-01-08
-**Tasks Completed:** 35 / 89
-**Current Phase:** 4 (Backend complete, Frontend pending)
+**Tasks Completed:** 48 / 89
+**Current Phase:** 4 (Complete) / Phase 2 (Next)
 
 ---
 

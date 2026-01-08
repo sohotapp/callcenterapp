@@ -16,6 +16,7 @@ import ExportPage from "@/pages/export";
 import SettingsPage from "@/pages/settings";
 import IcpPage from "@/pages/icp";
 import AnalyticsPage from "@/pages/analytics";
+import CallQueuePage from "@/pages/call-queue";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/export" component={ExportPage} />
       <Route path="/icp" component={IcpPage} />
       <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/call-queue" component={CallQueuePage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

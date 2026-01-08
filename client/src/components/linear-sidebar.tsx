@@ -15,6 +15,7 @@ import {
   Command,
   Moon,
   Sun,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +34,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, shortcut: "G H" },
   { label: "Leads", href: "/leads", icon: Building2, shortcut: "G L" },
+  { label: "Call Queue", href: "/call-queue", icon: Phone, shortcut: "G Q" },
   { label: "Scripts", href: "/scripts", icon: MessageSquareText },
   { label: "Scrape", href: "/scrape", icon: Database, shortcut: "G S" },
   { label: "ICP", href: "/icp", icon: Crosshair },

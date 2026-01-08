@@ -39,7 +39,7 @@ export async function registerRoutes(
   // ============================================
   // ANALYTICS & STATS ROUTES
   // ============================================
-  app.get("/api/stats", analyticsRoutes);
+  app.use("/api", analyticsRoutes);
   app.use("/api/analytics", analyticsRoutes);
 
   // ============================================

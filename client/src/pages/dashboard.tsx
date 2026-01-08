@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Circle,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,6 +25,16 @@ interface DashboardStats {
   highPriority: number;
   contacted: number;
   qualified: number;
+}
+
+interface PaginatedLeadsResponse {
+  data: GovernmentLead[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
 }
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -182,6 +193,17 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={cn("bg-muted animate-pulse rounded", className)} />;
 }
 
+// Helper to safely extract array from API response
+function extractLeadsArray(data: unknown): GovernmentLead[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === "object" && data !== null && "data" in data) {
+    const inner = (data as { data: unknown }).data;
+    if (Array.isArray(inner)) return inner;
+  }
+  return [];
+}
+
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
@@ -190,11 +212,11 @@ export default function Dashboard() {
     queryKey: ["/api/stats"],
   });
 
-  const { data: leadsData, isLoading: leadsLoading, isError: leadsError } = useQuery<{ data: GovernmentLead[]; pagination: { total: number } }>({
+  const { data: leadsData, isLoading: leadsLoading, isError: leadsError } = useQuery<PaginatedLeadsResponse>({
     queryKey: ["/api/leads"],
   });
 
-  const { data: topScoredLeads, isLoading: topScoredLoading } = useQuery<GovernmentLead[]>({
+  const { data: topScoredData, isLoading: topScoredLoading, isError: topScoredError } = useQuery<GovernmentLead[]>({
     queryKey: ["/api/leads/top-scored"],
   });
 
@@ -220,13 +242,16 @@ export default function Dashboard() {
     },
   });
 
-  const leads = leadsData?.data ?? [];
+  // Safely extract leads arrays
+  const leads = extractLeadsArray(leadsData);
+  const topScoredLeads = extractLeadsArray(topScoredData);
+
   const filteredLeads = leads.filter((lead) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      lead.institutionName.toLowerCase().includes(query) ||
-      lead.state.toLowerCase().includes(query) ||
+      lead.institutionName?.toLowerCase().includes(query) ||
+      lead.state?.toLowerCase().includes(query) ||
       (lead.county?.toLowerCase().includes(query) ?? false)
     );
   });
@@ -246,7 +271,11 @@ export default function Dashboard() {
               disabled={scoreAllMutation.isPending}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={cn("h-4 w-4", scoreAllMutation.isPending && "animate-spin")} />
+              {scoreAllMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
               {scoreAllMutation.isPending ? "Scoring..." : "Score All"}
             </button>
           </div>
@@ -304,7 +333,14 @@ export default function Dashboard() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : topScoredLeads && topScoredLeads.length > 0 ? (
+            ) : topScoredError ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center">
+                  <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+                  <p className="text-sm text-muted-foreground">Failed to load top leads</p>
+                </div>
+              </div>
+            ) : topScoredLeads.length > 0 ? (
               topScoredLeads.slice(0, 5).map((lead) => (
                 <LeadRow key={lead.id} lead={lead} />
               ))

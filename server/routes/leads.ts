@@ -19,17 +19,24 @@ const batchEnrichSchema = z.object({
   leadIds: z.array(z.number()).min(1).max(10),
 });
 
-// GET /api/leads - All leads with pagination
+// GET /api/leads - All leads with pagination (SQL-level LIMIT/OFFSET)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const params = paginationSchema.safeParse(req.query);
     const { limit, offset } = params.success ? params.data : { limit: 20, offset: 0 };
+    const page = Math.floor(offset / limit) + 1;
 
-    const leads = await storage.getAllLeads();
-    const total = leads.length;
-    const paginatedLeads = leads.slice(offset, offset + limit);
+    // Extract filters from query params
+    const filters = {
+      state: req.query.state as string | undefined,
+      status: req.query.status as string | undefined,
+      icpId: req.query.icpId ? Number(req.query.icpId) : undefined,
+    };
 
-    res.json(paginatedResponse(paginatedLeads, total, { limit, offset }));
+    // Use SQL-level pagination for better performance
+    const result = await storage.getLeadsPaginated(page, Math.min(limit, 100), filters);
+
+    res.json(paginatedResponse(result.leads, result.total, { limit, offset }));
   } catch (error) {
     console.error("Error fetching leads:", error);
     res.status(500).json({ error: "Failed to fetch leads" });

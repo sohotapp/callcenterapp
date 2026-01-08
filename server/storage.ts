@@ -63,12 +63,24 @@ export interface LeadScoringData {
   scoringBreakdown: ScoringBreakdown;
 }
 
+export interface LeadFilters {
+  state?: string;
+  status?: string;
+  icpId?: number;
+}
+
+export interface PaginatedLeadsResult {
+  leads: GovernmentLead[];
+  total: number;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
   getAllLeads(): Promise<GovernmentLead[]>;
+  getLeadsPaginated(page: number, limit: number, filters?: LeadFilters): Promise<PaginatedLeadsResult>;
   getLead(id: number): Promise<GovernmentLead | undefined>;
   createLead(lead: InsertGovernmentLead): Promise<GovernmentLead>;
   updateLead(id: number, lead: Partial<InsertGovernmentLead>): Promise<GovernmentLead | undefined>;
@@ -163,6 +175,44 @@ export class DatabaseStorage implements IStorage {
 
   async getAllLeads(): Promise<GovernmentLead[]> {
     return db.select().from(governmentLeads).orderBy(desc(governmentLeads.priorityScore));
+  }
+
+  async getLeadsPaginated(page: number, limit: number, filters?: LeadFilters): Promise<PaginatedLeadsResult> {
+    const offset = (page - 1) * limit;
+
+    // Build WHERE conditions
+    const conditions = [];
+    if (filters?.state) {
+      conditions.push(eq(governmentLeads.state, filters.state));
+    }
+    if (filters?.status) {
+      conditions.push(eq(governmentLeads.status, filters.status));
+    }
+    if (filters?.icpId) {
+      conditions.push(eq(governmentLeads.icpId, filters.icpId));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get paginated results and total count in parallel
+    const [leads, countResult] = await Promise.all([
+      db
+        .select()
+        .from(governmentLeads)
+        .where(whereClause)
+        .orderBy(desc(governmentLeads.priorityScore))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: count() })
+        .from(governmentLeads)
+        .where(whereClause),
+    ]);
+
+    return {
+      leads,
+      total: Number(countResult[0]?.count ?? 0),
+    };
   }
 
   async getLead(id: number): Promise<GovernmentLead | undefined> {

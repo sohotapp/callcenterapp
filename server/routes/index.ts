@@ -15,6 +15,8 @@ import companyRoutes from "./company";
 import aiStreamRoutes from "./ai-stream";
 import deduplicationRoutes from "./deduplication";
 import predictiveRoutes from "./predictive";
+import intelligenceRoutes from "./intelligence";
+import briefingRoutes from "./briefing";
 import { getAvailableTemplateVariables } from "./utils";
 
 export async function registerRoutes(
@@ -131,6 +133,16 @@ export async function registerRoutes(
   // PREDICTIVE SCORING ROUTES
   // ============================================
   app.use("/api/predictive", predictiveRoutes);
+
+  // ============================================
+  // INTELLIGENCE ROUTES (Synthesis, Signals, Scoring)
+  // ============================================
+  app.use("/api/intelligence", intelligenceRoutes);
+
+  // ============================================
+  // CALL BRIEFING ROUTES (The Product)
+  // ============================================
+  app.use("/api/briefing", briefingRoutes);
 
   return httpServer;
 }

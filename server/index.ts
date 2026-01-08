@@ -1,7 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { registerRoutes } from "./routes/index";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { apiLimiter, scrapeLimiter, enrichLimiter } from "./middleware/rate-limit";
 
 const app = express();
 const httpServer = createServer(app);
@@ -12,15 +14,33 @@ declare module "http" {
   }
 }
 
-app.use(
-  express.json({
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
+// Security headers with helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:"],
     },
-  }),
-);
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
-app.use(express.urlencoded({ extended: false }));
+// Request body size limits
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
+}));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Apply rate limiting
+app.use('/api', apiLimiter);
+app.use('/api/scrape', scrapeLimiter);
+app.use('/api/leads/:id/enrich', enrichLimiter);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

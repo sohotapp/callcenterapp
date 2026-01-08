@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, serial, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, serial, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -85,6 +85,98 @@ export interface LeadSourceData {
   rawData?: Record<string, unknown>; // Original scraped data for audit
 }
 
+// Intelligence-First Data Model Types
+
+// Company context for intelligence-first outreach
+export const companyContextSchema = z.object({
+  industry: z.string().nullable().optional(),
+  employeeCount: z.number().nullable().optional(),
+  fundingStage: z.string().nullable().optional(),
+  recentFunding: z.object({
+    amount: z.string().nullable().optional(),
+    date: z.string().nullable().optional(),
+  }).nullable().optional(),
+  techStack: z.array(z.string()).optional(),
+  competitorsUsed: z.array(z.string()).optional(),
+  hiringSignals: z.object({
+    openRoles: z.array(z.string()).optional(),
+    hiringVelocity: z.enum(["aggressive", "stable", "contracting"]).nullable().optional(),
+  }).nullable().optional(),
+  newsEvents: z.array(z.object({
+    type: z.string(),
+    date: z.string().nullable().optional(),
+    summary: z.string(),
+  })).optional(),
+});
+
+export type CompanyContext = z.infer<typeof companyContextSchema>;
+
+// Person context for decision maker intelligence
+export const personContextSchema = z.object({
+  tenureInRole: z.string().nullable().optional(),
+  previousCompany: z.string().nullable().optional(),
+  previousRole: z.string().nullable().optional(),
+  contentCreated: z.object({
+    linkedinPosts: z.array(z.object({
+      date: z.string().nullable().optional(),
+      content: z.string(),
+      engagement: z.number().nullable().optional(),
+    })).optional(),
+    redditPosts: z.array(z.object({
+      subreddit: z.string(),
+      date: z.string().nullable().optional(),
+      content: z.string(),
+      url: z.string().nullable().optional(),
+    })).optional(),
+    articles: z.array(z.string()).optional(),
+  }).nullable().optional(),
+  publicOpinions: z.object({
+    topicsTheyCareAbout: z.array(z.string()).optional(),
+    toolsPraised: z.array(z.string()).optional(),
+    toolsCriticized: z.array(z.string()).optional(),
+  }).nullable().optional(),
+});
+
+export type PersonContext = z.infer<typeof personContextSchema>;
+
+// Intent signal schema - THE KEY to intelligence-first outreach
+export const intentSignalSchema = z.object({
+  signalType: z.enum(["reddit_post", "job_posting", "g2_review", "news", "tech_change"]),
+  signalDate: z.string(),
+  signalContent: z.string(),
+  signalStrength: z.number().min(1).max(10),
+  relevanceToUs: z.enum(["direct", "adjacent", "weak"]),
+  sourceUrl: z.string().nullable().optional(),
+});
+
+export type IntentSignal = z.infer<typeof intentSignalSchema>;
+
+// Synthesized context - AI-generated intelligence
+export const synthesizedContextSchema = z.object({
+  whyReachOutNow: z.string().nullable().optional(),
+  personalizationHooks: z.array(z.string()).optional(),
+  recommendedAngle: z.string().nullable().optional(),
+  predictedObjections: z.array(z.string()).optional(),
+  counterToObjections: z.record(z.string()).optional(),
+  doNotMention: z.array(z.string()).optional(),
+  outreachScore: z.number().min(1).max(10).nullable().optional(),
+  scoreReasoning: z.string().nullable().optional(),
+});
+
+export type SynthesizedContext = z.infer<typeof synthesizedContextSchema>;
+
+// Outreach history for feedback loop
+export const outreachHistoryEntrySchema = z.object({
+  channel: z.enum(["call", "email", "linkedin"]),
+  date: z.string(),
+  signalUsed: z.string().nullable().optional(),
+  hookUsed: z.string().nullable().optional(),
+  outcome: z.enum(["meeting", "callback", "not_interested", "no_answer", "no_reply"]),
+  notes: z.string().nullable().optional(),
+});
+
+export type OutreachHistoryEntry = z.infer<typeof outreachHistoryEntrySchema>;
+
 // Government Lead - main entity for county/local government contacts (also used for other verticals)
 export const governmentLeads = pgTable("government_leads", {
   id: serial("id").primaryKey(),
@@ -122,12 +214,33 @@ export const governmentLeads = pgTable("government_leads", {
   enrichmentData: jsonb("enrichment_data").$type<Record<string, unknown>>(),
   enrichedAt: timestamp("enriched_at"),
   enrichmentScore: integer("enrichment_score"), // 1-100 quality score
+
+  // Intelligence-First Data Model Fields
+  companyContext: jsonb("company_context").$type<CompanyContext>(),
+  personContext: jsonb("person_context").$type<PersonContext>(),
+  intentSignals: jsonb("intent_signals").$type<IntentSignal[]>(),
+  synthesizedContext: jsonb("synthesized_context").$type<SynthesizedContext>(),
+  outreachHistory: jsonb("outreach_history").$type<OutreachHistoryEntry[]>(),
+  linkedinUrl: text("linkedin_url"),
+  twitterHandle: text("twitter_handle"),
+  redditUsername: text("reddit_username"),
+  outreachScore: integer("outreach_score"), // 1-10 intelligence-based outreach readiness
+  lastSignalDate: timestamp("last_signal_date"), // For sorting by signal recency
+
   // ICP linkage and source tracking
   icpId: integer("icp_id"), // Links to the ICP profile this lead belongs to
   sourceData: jsonb("source_data").$type<LeadSourceData>(), // Source tracking for data provenance
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (table) => ({
+  icpIdIdx: index("gov_leads_icp_id_idx").on(table.icpId),
+  stateIdx: index("gov_leads_state_idx").on(table.state),
+  statusIdx: index("gov_leads_status_idx").on(table.status),
+  updatedAtIdx: index("gov_leads_updated_at_idx").on(table.updatedAt),
+  priorityScoreIdx: index("gov_leads_priority_score_idx").on(table.priorityScore),
+  outreachScoreIdx: index("gov_leads_outreach_score_idx").on(table.outreachScore),
+  lastSignalDateIdx: index("gov_leads_last_signal_date_idx").on(table.lastSignalDate),
+}));
 
 export const insertGovernmentLeadSchema = createInsertSchema(governmentLeads).omit({
   id: true,
@@ -162,7 +275,9 @@ export const callScripts = pgTable("call_scripts", {
   objectionHandlers: jsonb("objection_handlers").$type<ObjectionHandler[]>(),
   closingStatement: text("closing_statement").notNull(),
   generatedAt: timestamp("generated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (table) => ({
+  leadIdIdx: index("call_scripts_lead_id_idx").on(table.leadId),
+}));
 
 export const insertCallScriptSchema = createInsertSchema(callScripts).omit({
   id: true,
@@ -385,7 +500,10 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
   enrolledAt: timestamp("enrolled_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   lastStepSentAt: timestamp("last_step_sent_at"),
   nextStepAt: timestamp("next_step_at"),
-});
+}, (table) => ({
+  leadIdIdx: index("seq_enroll_lead_id_idx").on(table.leadId),
+  sequenceIdIdx: index("seq_enroll_seq_id_idx").on(table.sequenceId),
+}));
 
 export const insertSequenceEnrollmentSchema = createInsertSchema(sequenceEnrollments).omit({
   id: true,
@@ -451,7 +569,10 @@ export const outreachActivities = pgTable("outreach_activities", {
   duration: integer("duration"), // call duration in seconds
   metadata: jsonb("metadata").$type<ActivityMetadata>(),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (table) => ({
+  leadIdIdx: index("outreach_lead_id_idx").on(table.leadId),
+  createdAtIdx: index("outreach_created_at_idx").on(table.createdAt),
+}));
 
 export const insertOutreachActivitySchema = createInsertSchema(outreachActivities).omit({
   id: true,

@@ -22,6 +22,7 @@
   /* Borders */
   --border: 0 0% 89%;                 /* #e3e3e3 */
   --input: 0 0% 89%;
+  --card-border: 0 0% 89%;
 
   /* Accent - Linear's signature indigo */
   --primary: 235 69% 61%;             /* #5e6ad2 */
@@ -94,9 +95,10 @@
   --popover: 0 0% 9%;                 /* #171717 */
   --popover-foreground: 0 0% 96%;
 
-  /* Borders - Subtle in dark mode */
-  --border: 0 0% 14%;                 /* #242424 */
-  --input: 0 0% 14%;
+  /* Borders - Very subtle in dark mode (Linear style) */
+  --border: 0 0% 16%;                 /* #292929 - subtle but visible */
+  --input: 0 0% 18%;                  /* #2e2e2e - slightly more visible for inputs */
+  --card-border: 0 0% 14%;            /* #242424 - subtle card borders */
 
   /* Accent - Linear's signature indigo */
   --primary: 235 69% 61%;             /* #5e6ad2 */

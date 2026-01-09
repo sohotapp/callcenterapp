@@ -13,6 +13,10 @@ import {
   Circle,
   AlertCircle,
   Loader2,
+  Flame,
+  Mail,
+  Linkedin,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,6 +39,24 @@ interface PaginatedLeadsResponse {
     offset: number;
     hasMore: boolean;
   };
+}
+
+interface HotLead {
+  id: number;
+  institutionName: string;
+  institutionType: string;
+  state: string;
+  department: string | null;
+  outreachScore: number | null;
+  whyNow: string | null;
+  email: string | null;
+  phone: string | null;
+  signalCount: number;
+}
+
+interface HotLeadsResponse {
+  leads: HotLead[];
+  total: number;
 }
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -193,6 +215,57 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={cn("bg-muted animate-pulse rounded", className)} />;
 }
 
+function HotLeadCard({ lead }: { lead: HotLead }) {
+  const score = lead.outreachScore ?? 0;
+
+  return (
+    <div className="flex items-start gap-3 p-3 hover:bg-accent/50 transition-colors border-b border-border last:border-b-0">
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 shrink-0">
+        <Flame className="h-4 w-4 text-orange-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <Link href={`/leads/${lead.id}`}>
+          <span className="font-medium text-sm hover:text-primary cursor-pointer">
+            {lead.institutionName}
+          </span>
+        </Link>
+        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+          {lead.whyNow || `${lead.institutionType} | ${lead.state}`}
+        </p>
+        <div className="flex items-center gap-2 mt-2">
+          {lead.phone && (
+            <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-700">
+              <Phone className="h-3 w-3" />
+              Call
+            </a>
+          )}
+          {lead.email && (
+            <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+              <Mail className="h-3 w-3" />
+              Email
+            </a>
+          )}
+          <Link href={`/leads/${lead.id}`}>
+            <span className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 cursor-pointer">
+              <ExternalLink className="h-3 w-3" />
+              View
+            </span>
+          </Link>
+        </div>
+      </div>
+      <div className="flex flex-col items-end">
+        <span className={cn(
+          "text-sm font-semibold",
+          score >= 9 ? "text-orange-600" : "text-orange-500"
+        )}>
+          {score}/10
+        </span>
+        <span className="text-[10px] text-muted-foreground">{lead.signalCount} signals</span>
+      </div>
+    </div>
+  );
+}
+
 // Helper to safely extract array from API response
 function extractLeadsArray(data: unknown): GovernmentLead[] {
   if (!data) return [];
@@ -218,6 +291,15 @@ export default function Dashboard() {
 
   const { data: topScoredData, isLoading: topScoredLoading, isError: topScoredError } = useQuery<GovernmentLead[]>({
     queryKey: ["/api/leads/top-scored"],
+  });
+
+  const { data: hotLeadsData, isLoading: hotLeadsLoading, isError: hotLeadsError } = useQuery<HotLeadsResponse>({
+    queryKey: ["/api/messages/pending-review"],
+    queryFn: async () => {
+      const res = await fetch("/api/messages/pending-review?limit=5");
+      if (!res.ok) throw new Error("Failed to fetch hot leads");
+      return res.json();
+    },
   });
 
   const scoreAllMutation = useMutation({
@@ -315,43 +397,87 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Top Scored Leads */}
-        <div className="rounded-lg border border-border bg-card">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-yellow-500" />
-              <h2 className="text-sm font-medium">Top Scored Leads</h2>
+        {/* Hot Leads + Top Scored Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Hot Leads - Ready for Outreach */}
+          <div className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <h2 className="text-sm font-medium">Hot Leads</h2>
+                <span className="text-xs text-muted-foreground">(Ready for Outreach)</span>
+              </div>
+              <Link href="/review">
+                <span className="text-xs text-primary hover:underline cursor-pointer">Review all</span>
+              </Link>
             </div>
-            <Link href="/leads">
-              <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
-            </Link>
-          </div>
-          <div>
-            {topScoredLoading ? (
-              <div className="p-4 space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : topScoredError ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex flex-col items-center">
-                  <AlertCircle className="h-8 w-8 text-destructive mb-2" />
-                  <p className="text-sm text-muted-foreground">Failed to load top leads</p>
+            <div>
+              {hotLeadsLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
                 </div>
+              ) : hotLeadsError ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex flex-col items-center">
+                    <AlertCircle className="h-6 w-6 text-destructive mb-2" />
+                    <p className="text-sm text-muted-foreground">Failed to load hot leads</p>
+                  </div>
+                </div>
+              ) : hotLeadsData && hotLeadsData.leads.length > 0 ? (
+                hotLeadsData.leads.map((lead) => (
+                  <HotLeadCard key={lead.id} lead={lead} />
+                ))
+              ) : (
+                <EmptyState
+                  icon={Flame}
+                  title="No hot leads yet"
+                  description="High-value leads with intelligence synthesis will appear here"
+                  action={{ label: "View Leads", href: "/leads" }}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Top Scored Leads */}
+          <div className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-yellow-500" />
+                <h2 className="text-sm font-medium">Top Scored Leads</h2>
               </div>
-            ) : topScoredLeads.length > 0 ? (
-              topScoredLeads.slice(0, 5).map((lead) => (
-                <LeadRow key={lead.id} lead={lead} />
-              ))
-            ) : (
-              <EmptyState
-                icon={Target}
-                title="No scored leads"
-                description="Score your leads to see top priorities"
-                action={{ label: "Score Leads", href: "/leads" }}
-              />
-            )}
+              <Link href="/leads">
+                <span className="text-xs text-primary hover:underline cursor-pointer">View all</span>
+              </Link>
+            </div>
+            <div>
+              {topScoredLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : topScoredError ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center">
+                    <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+                    <p className="text-sm text-muted-foreground">Failed to load top leads</p>
+                  </div>
+                </div>
+              ) : topScoredLeads.length > 0 ? (
+                topScoredLeads.slice(0, 5).map((lead) => (
+                  <LeadRow key={lead.id} lead={lead} />
+                ))
+              ) : (
+                <EmptyState
+                  icon={Target}
+                  title="No scored leads"
+                  description="Score your leads to see top priorities"
+                  action={{ label: "Score Leads", href: "/leads" }}
+                />
+              )}
+            </div>
           </div>
         </div>
 

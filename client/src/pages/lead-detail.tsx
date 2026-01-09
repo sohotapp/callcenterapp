@@ -32,6 +32,11 @@ import {
   Flame,
   ChevronDown,
   ChevronRight,
+  Radio,
+  Lightbulb,
+  History,
+  XCircle,
+  Activity,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,7 +51,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { extractArray } from "@/lib/utils";
 import { SmartLeadCard } from "@/components/smart-lead-card";
 import { EmailComposer } from "@/components/email-composer";
-import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown } from "@shared/schema";
+import { LinkedInComposer } from "@/components/linkedin-composer";
+import type { GovernmentLead, CallScript, DecisionMaker, RecentNews, CompetitorAnalysis, ScriptStyle, ObjectionHandler, ScoringBreakdown, IntentSignal, SynthesizedContext, OutreachHistoryEntry } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   not_contacted: "bg-muted text-muted-foreground",
@@ -333,6 +339,10 @@ export default function LeadDetail() {
                 <Mail className="h-4 w-4 mr-2" />
                 Email
               </TabsTrigger>
+              <TabsTrigger value="linkedin" data-testid="tab-linkedin">
+                <Linkedin className="h-4 w-4 mr-2" />
+                LinkedIn
+              </TabsTrigger>
               <TabsTrigger value="intelligence" data-testid="tab-intelligence">
                 <Brain className="h-4 w-4 mr-2" />
                 Intelligence
@@ -340,6 +350,10 @@ export default function LeadDetail() {
               <TabsTrigger value="pain-points" data-testid="tab-pain-points">
                 <AlertCircle className="h-4 w-4 mr-2" />
                 Pain Points
+              </TabsTrigger>
+              <TabsTrigger value="activity" data-testid="tab-activity">
+                <History className="h-4 w-4 mr-2" />
+                Activity
               </TabsTrigger>
             </TabsList>
 
@@ -623,6 +637,29 @@ export default function LeadDetail() {
               />
             </TabsContent>
 
+            <TabsContent value="linkedin" className="mt-4">
+              <LinkedInComposer
+                leadId={lead.id}
+                leadName={lead.institutionName}
+                linkedinUrl={lead.linkedinUrl}
+                whyNow={lead.synthesizedContext?.whyReachOutNow}
+                onSend={async (message) => {
+                  try {
+                    await apiRequest("POST", "/api/activities", {
+                      leadId: lead.id,
+                      activityType: "linkedin",
+                      content: message,
+                      status: "sent",
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["/api/leads", leadId] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/activities/lead", leadId] });
+                  } catch (error) {
+                    console.error("Failed to log LinkedIn activity:", error);
+                  }
+                }}
+              />
+            </TabsContent>
+
             <TabsContent value="intelligence" className="mt-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -667,7 +704,110 @@ export default function LeadDetail() {
                           <Progress value={lead.enrichmentScore} className="h-2" />
                         </div>
                       )}
-                      
+
+                      {/* Synthesized Context - AI Intelligence Summary */}
+                      {lead.synthesizedContext && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Lightbulb className="h-4 w-4 text-yellow-500" />
+                            AI Synthesis
+                            {lead.outreachScore && (
+                              <Badge variant={lead.outreachScore >= 8 ? "default" : "secondary"} className="ml-auto">
+                                Score: {lead.outreachScore}/10
+                              </Badge>
+                            )}
+                          </h4>
+                          <div className="space-y-3">
+                            {lead.synthesizedContext.whyReachOutNow && (
+                              <div className="bg-green-50 dark:bg-green-900/20 rounded-md p-3 border border-green-200 dark:border-green-800">
+                                <p className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">Why Reach Out Now</p>
+                                <p className="text-sm">{lead.synthesizedContext.whyReachOutNow}</p>
+                              </div>
+                            )}
+                            {lead.synthesizedContext.recommendedAngle && (
+                              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-md p-3 border border-blue-200 dark:border-blue-800">
+                                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Recommended Angle</p>
+                                <p className="text-sm">{lead.synthesizedContext.recommendedAngle}</p>
+                              </div>
+                            )}
+                            {Array.isArray(lead.synthesizedContext.personalizationHooks) && lead.synthesizedContext.personalizationHooks.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Personalization Hooks</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {lead.synthesizedContext.personalizationHooks.map((hook, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">{hook}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {Array.isArray(lead.synthesizedContext.predictedObjections) && lead.synthesizedContext.predictedObjections.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Predicted Objections</p>
+                                <ul className="space-y-1">
+                                  {lead.synthesizedContext.predictedObjections.map((obj, idx) => (
+                                    <li key={idx} className="text-sm flex items-start gap-2">
+                                      <XCircle className="h-3 w-3 text-amber-500 mt-1 shrink-0" />
+                                      {obj}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {Array.isArray(lead.synthesizedContext.doNotMention) && lead.synthesizedContext.doNotMention.length > 0 && (
+                              <div className="bg-red-50 dark:bg-red-900/20 rounded-md p-3 border border-red-200 dark:border-red-800">
+                                <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Do Not Mention</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {lead.synthesizedContext.doNotMention.map((item, idx) => (
+                                    <Badge key={idx} variant="destructive" className="text-xs">{item}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {lead.synthesizedContext.scoreReasoning && (
+                              <div className="text-xs text-muted-foreground italic">
+                                {lead.synthesizedContext.scoreReasoning}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Intent Signals Timeline */}
+                      {Array.isArray(lead.intentSignals) && lead.intentSignals.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Radio className="h-4 w-4 text-purple-500" />
+                            Intent Signals
+                            <Badge variant="secondary" className="ml-auto">{lead.intentSignals.length} signals</Badge>
+                          </h4>
+                          <div className="relative space-y-3 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
+                            {(lead.intentSignals as IntentSignal[]).map((signal, idx) => (
+                              <div key={idx} className="relative">
+                                <div className="absolute -left-[1.35rem] top-1 h-3 w-3 rounded-full bg-purple-500" />
+                                <div className="bg-muted/50 rounded-md p-3 space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium text-sm capitalize">{signal.signalType.replace(/_/g, ' ')}</span>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant={signal.relevanceToUs === 'direct' ? 'default' : signal.relevanceToUs === 'adjacent' ? 'secondary' : 'outline'} className="text-xs">
+                                        {signal.relevanceToUs}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">Strength: {signal.signalStrength}/10</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">{signal.description}</p>
+                                  {signal.sourceUrl && (
+                                    <a href={signal.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                                      <ExternalLink className="h-3 w-3" />
+                                      Source
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {Array.isArray(lead.decisionMakers) && lead.decisionMakers.length > 0 && (
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium flex items-center gap-2">
@@ -833,6 +973,76 @@ export default function LeadDetail() {
                       <h3 className="text-lg font-medium">No Pain Points Identified</h3>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                         Pain points will be identified when you generate a script or enrich the lead.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="activity" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Outreach Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {Array.isArray(lead.outreachHistory) && lead.outreachHistory.length > 0 ? (
+                    <div className="relative space-y-4 pl-4 border-l-2 border-muted">
+                      {(lead.outreachHistory as OutreachHistoryEntry[]).map((entry, idx) => {
+                        const channelConfig = {
+                          call: { icon: Phone, color: 'text-green-500', bg: 'bg-green-500' },
+                          email: { icon: Mail, color: 'text-blue-500', bg: 'bg-blue-500' },
+                          linkedin: { icon: Linkedin, color: 'text-[#0077b5]', bg: 'bg-[#0077b5]' },
+                        };
+                        const config = channelConfig[entry.channel] || channelConfig.email;
+                        const ChannelIcon = config.icon;
+                        const outcomeColors = {
+                          no_answer: 'bg-muted text-muted-foreground',
+                          voicemail: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+                          callback_scheduled: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                          meeting_booked: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                          not_interested: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+                          replied: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                          opened: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                          no_response: 'bg-muted text-muted-foreground',
+                          connected: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+                        };
+
+                        return (
+                          <div key={idx} className="relative">
+                            <div className={`absolute -left-[1.35rem] top-1 h-3 w-3 rounded-full ${config.bg}`} />
+                            <div className="bg-muted/50 rounded-md p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <ChannelIcon className={`h-4 w-4 ${config.color}`} />
+                                  <span className="font-medium text-sm capitalize">{entry.channel}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className={outcomeColors[entry.outcome as keyof typeof outcomeColors] || 'bg-muted'}>
+                                    {entry.outcome.replace(/_/g, ' ')}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(entry.date).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                              {entry.notes && (
+                                <p className="text-sm text-muted-foreground">{entry.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Activity className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                      <h3 className="text-lg font-medium">No Activity Yet</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        Outreach activity will be tracked here as you contact this lead.
                       </p>
                     </div>
                   )}

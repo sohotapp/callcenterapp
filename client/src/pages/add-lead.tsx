@@ -569,8 +569,8 @@ export default function AddLeadPage() {
                   <FormItem>
                     <FormLabel>ICP Profile</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
-                      value={field.value?.toString() || ""}
+                      onValueChange={(value) => field.onChange(value === "__auto__" ? "" : value)}
+                      value={field.value?.toString() || "__auto__"}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -578,7 +578,7 @@ export default function AddLeadPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Auto-assign</SelectItem>
+                        <SelectItem value="__auto__">Auto-assign</SelectItem>
                         {icpProfiles
                           .filter((icp) => icp.isActive)
                           .map((icp) => (

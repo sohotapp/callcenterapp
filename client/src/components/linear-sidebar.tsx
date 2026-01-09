@@ -187,10 +187,22 @@ export function LinearSidebar() {
     staleTime: 30000,
   });
 
+  // Fetch review queue count for badge
+  const { data: reviewQueueData } = useQuery({
+    queryKey: ["/api/messages/pending-review", { limit: 1 }],
+    queryFn: async () => {
+      const res = await fetch("/api/messages/pending-review?limit=1");
+      if (!res.ok) return { total: 0 };
+      return res.json();
+    },
+    refetchInterval: 60000, // Refresh every minute
+    staleTime: 30000,
+  });
+
   // Badge counts for navigation items
   const badgeCounts: Record<string, number> = {
     hotLeads: callQueueData?.total ?? 0,
-    reviewQueue: 0, // TODO: implement review queue count
+    reviewQueue: reviewQueueData?.total ?? 0,
   };
 
   // Handle keyboard shortcut to toggle sidebar

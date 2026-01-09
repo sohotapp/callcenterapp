@@ -407,7 +407,7 @@ export default function Dashboard() {
                 <h2 className="text-sm font-medium">Hot Leads</h2>
                 <span className="text-xs text-muted-foreground">(Ready for Outreach)</span>
               </div>
-              <Link href="/review">
+              <Link href="/review-queue">
                 <span className="text-xs text-primary hover:underline cursor-pointer">Review all</span>
               </Link>
             </div>
